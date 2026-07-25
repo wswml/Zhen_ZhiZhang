@@ -50,6 +50,9 @@ def import_alipay(
         trade_time = row.get('交易时间', row.get('交易创建时间', ''))
         trade_type = row.get('类型', '')
         trade_name = row.get('交易名称', row.get('商品名称', row.get('交易对方', '')))
+        # 花呗还款排除
+        if trade_name == "花呗":
+            continue
         amount_str = row.get('金额', row.get('金额（元）', '0'))
 
         try:
@@ -184,6 +187,10 @@ def import_qianji(
         name = row.get("备注", "").strip()
         # 防御: 清理 CDATA/XML 残留
         name = name.replace("]]>", "").replace("<![CDATA[", "").strip()
+        # 花呗还款排除: 商户名为"花呗"的记录是信用卡还款，重复记账
+        if name == "花呗":
+            skipped += 1
+            continue
 
         # 去重检查（两级）
         key = (day, money, name)
@@ -257,6 +264,9 @@ def import_wechat(
         trade_time = row.get('交易时间', '')
         trade_type = row.get('交易类型', '')
         trade_name = row.get('商品', row.get('交易对方', ''))
+        # 花呗还款排除
+        if trade_name == "花呗":
+            continue
         amount_str = row.get('金额(元)', row.get('金额', '0'))
 
         try:
