@@ -29,5 +29,9 @@ tmp/
 # Token 缓存
 .jz_token
 
+# 分类缓存
+classification_cache.json
+*.cache.json
+
 # IDE
 .vscode/
