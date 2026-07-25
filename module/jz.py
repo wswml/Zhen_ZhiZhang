@@ -223,7 +223,7 @@ def dedup_append(new_rows: list):
     """读已有 CSV，按 (日期, 金额, 方向, 备注) 指纹去重后追加"""
     existing_fps = set()
     if os.path.exists(CSV_FILE):
-        with open(CSV_FILE, 'r', encoding='utf-8-sig') as f:
+        with open(CSV_FILE, 'r', encoding='utf-8') as f:
             first = f.readline()  # 表头
             for line in f:
                 line = line.strip()
