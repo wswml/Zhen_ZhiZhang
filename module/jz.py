@@ -155,8 +155,12 @@ def parse_rows() -> list:
             # 支付宝
             am = ALI_R.match(data)
             if am:
+                merchant = (am.group(3) or '').strip()
+                # 花呗还款: 商户是"花呗" → 跳过（实际消费已在花呗消费时记录）
+                if merchant == '花呗':
+                    continue
                 rows.append((tf, '其他', '', am.group(1), am.group(2), '', '',
-                            am.group(3) or am.group(4)))
+                            merchant or am.group(4) or ''))
                 continue
 
             # 微信支付
