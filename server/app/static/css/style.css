@@ -163,6 +163,11 @@ body {
 .cat-housing { background: #FFFBEB; color: #D97706; }
 .cat-medical { background: #FEF2F2; color: #DC2626; }
 .cat-education { background: #ECFEFF; color: #0891B2; }
+.cat-communication { background: #CCFBF1; color: #0D9488; }
+.cat-transfer { background: #F0FDF4; color: #16A34A; }
+.cat-investment { background: #FFF7ED; color: #EA580C; }
+.cat-salary { background: #F0FDFA; color: #14B8A6; }
+.cat-repayment { background: #FDF2F8; color: #BE185D; }
 .cat-other { background: #F3F4F6; color: #6B7280; }
 [data-theme="dark"] .cat-food { background: rgba(147,51,234,0.15); }
 [data-theme="dark"] .cat-transport { background: rgba(79,70,229,0.15); }
@@ -171,6 +176,11 @@ body {
 [data-theme="dark"] .cat-housing { background: rgba(217,119,6,0.15); }
 [data-theme="dark"] .cat-medical { background: rgba(220,38,38,0.15); }
 [data-theme="dark"] .cat-education { background: rgba(8,145,178,0.15); }
+[data-theme="dark"] .cat-communication { background: rgba(13,148,136,0.15); }
+[data-theme="dark"] .cat-transfer { background: rgba(22,163,74,0.15); }
+[data-theme="dark"] .cat-investment { background: rgba(234,88,12,0.15); }
+[data-theme="dark"] .cat-salary { background: rgba(20,184,166,0.15); }
+[data-theme="dark"] .cat-repayment { background: rgba(190,24,93,0.15); }
 [data-theme="dark"] .cat-other { background: rgba(107,114,128,0.15); }
 .category-name { font-size: 0.7rem; color: var(--text-secondary); font-weight: 500; }
 .category-amount { font-size: 0.75rem; color: var(--text-muted); margin-top: 2px; }

@@ -79,8 +79,8 @@ function renderFlowPage(){
     const items=recent.slice(0,end);
     list.innerHTML=items.map((f,i)=>{
         const ic=f.flow_type==='收入';
-        const cls={'餐饮':'cat-food','交通':'cat-transport','购物':'cat-shopping','居住':'cat-housing','娱乐':'cat-entertainment','医疗':'cat-medical','教育':'cat-education'}[f.industry_type]||'cat-other';
-        const icon={'餐饮':'fork-knife','交通':'bus','购物':'shopping-bag','居住':'house','娱乐':'film-strip','医疗':'heartbeat','教育':'graduation-cap'}[f.industry_type]||'dots-three';
+        const cls={'餐饮':'cat-food','交通':'cat-transport','购物':'cat-shopping','住房':'cat-housing','通讯':'cat-communication','娱乐':'cat-entertainment','医疗':'cat-medical','教育':'cat-education','转账':'cat-transfer','理财':'cat-investment','工资':'cat-salary','还款':'cat-repayment'}[f.industry_type]||'cat-other';
+        const icon={'餐饮':'fork-knife','交通':'bus','购物':'shopping-bag','住房':'house','通讯':'phone','娱乐':'film-strip','医疗':'heartbeat','教育':'graduation-cap','转账':'arrows-left-right','理财':'trending-up','工资':'currency-cny','还款':'credit-card'}[f.industry_type]||'dots-three';
         return '<div class="tx-item stagger" style="animation-delay:'+((i%20)*0.05)+'s;"><div class="tx-icon '+cls+'"><i class="ph ph-'+icon+'"></i></div><div class="tx-info"><div class="tx-title">'+(f.name||f.industry_type||'未分类')+'</div><div class="tx-meta">'+f.day+'</div></div><div class="tx-amount '+(ic?'income':'expense')+'">'+(ic?'+':'-')+'¥'+(f.money||0).toFixed(2)+'</div></div>'
     }).join('');
     // 底部加载指示器
@@ -210,8 +210,8 @@ function showDateDetail(ds,el){
     else{
         content.innerHTML=dayFlows.map(f=>{
             const ic=f.flow_type==='收入';
-            const cls={'餐饮':'cat-food','交通':'cat-transport','购物':'cat-shopping','居住':'cat-housing','娱乐':'cat-entertainment','医疗':'cat-medical','教育':'cat-education'}[f.industry_type]||'cat-other';
-            const icon={'餐饮':'fork-knife','交通':'bus','购物':'shopping-bag','居住':'house','娱乐':'film-strip','医疗':'heartbeat','教育':'graduation-cap'}[f.industry_type]||'dots-three';
+            const cls={'餐饮':'cat-food','交通':'cat-transport','购物':'cat-shopping','住房':'cat-housing','通讯':'cat-communication','娱乐':'cat-entertainment','医疗':'cat-medical','教育':'cat-education','转账':'cat-transfer','理财':'cat-investment','工资':'cat-salary','还款':'cat-repayment'}[f.industry_type]||'cat-other';
+            const icon={'餐饮':'fork-knife','交通':'bus','购物':'shopping-bag','住房':'house','通讯':'phone','娱乐':'film-strip','医疗':'heartbeat','教育':'graduation-cap','转账':'arrows-left-right','理财':'trending-up','工资':'currency-cny','还款':'credit-card'}[f.industry_type]||'dots-three';
             return '<div class="tx-item" style="padding:8px 0;"><div class="tx-icon '+cls+'" style="width:36px;height:36px;font-size:0.8rem;"><i class="ph ph-'+icon+'"></i></div><div class="tx-info"><div class="tx-title" style="font-size:0.85rem;">'+(f.name||f.industry_type||'未分类')+'</div><div class="tx-meta">'+(f.attribution||'我')+'</div></div><div class="tx-amount '+(ic?'income':'expense')+'" style="font-size:0.9rem;">'+(ic?'+':'-')+'¥'+(f.money||0).toFixed(2)+'</div></div>'
         }).join('')
     }
