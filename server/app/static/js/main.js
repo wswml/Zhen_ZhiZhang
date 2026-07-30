@@ -297,24 +297,28 @@ async function batchDeleteBooks(){
 
 // ===== 我的 =====
 function loadProfile(){
-    document.getElementById('avatarDisplay').innerHTML='<i class="ph ph-user-circle"></i> '+(user.name||user.username||'').charAt(0);
-    document.getElementById('userNameDisplay').textContent=user.name||user.username||'用户';
-    document.getElementById('userBooksCount').textContent=books.length+' 个账本'
+    const u=user;
+    document.getElementById('avatarDisplay').innerHTML='<i class="ph ph-user-circle"></i> '+(u.name||u.username||'').charAt(0);
+    document.getElementById('userNameDisplay').textContent=u.name||u.username||'用户';
+    document.getElementById('userBooksCount').textContent=books.length+' 个账本';
+    // 渲染账本列表
+    const el=document.getElementById('profileBookList');
+    if(!books.length){el.innerHTML='';return}
+    el.innerHTML=books.map(b=>'<div class="tx-item" style="padding:8px 0;cursor:pointer;" onclick="location.href=\'/book/'+b.book_id+'\'">'+
+        '<div class="tx-icon" style="background:var(--accent-bg);color:var(--accent);"><i class="ph ph-book"></i></div>'+
+        '<div class="tx-info"><div class="tx-title" style="font-size:0.85rem;">'+b.book_name+'</div></div>'+
+        '<span style="font-size:0.72rem;color:var(--text-muted);">›</span></div>'
+    ).join('')
 }
 
 // ===== 分类明细 =====
 function loadCategoryPage(){
     if(!books.length)return;
     if(!currentBookId||!books.find(b=>b.book_id===currentBookId))currentBookId=books[0].book_id;
-    selectedCategory=null;
-    document.getElementById('catListView').style.display='block';
-    document.getElementById('catDetailView').style.display='none';
-    const r=allFlows.length?{code:200}:{code:0};
     if(!allFlows.length)return;
     renderCatSummary()
 }
 function renderCatSummary(){
-    // 按月份分组
     const monthly={};
     allFlows.forEach(f=>{
         if(f.flow_type==='支出'&&f.day){
@@ -327,52 +331,54 @@ function renderCatSummary(){
     const months=Object.keys(monthly).sort().reverse();
     const cls={'餐饮':'cat-food','交通':'cat-transport','购物':'cat-shopping','居住':'cat-housing','通讯':'cat-communication','娱乐':'cat-entertainment','医疗':'cat-medical','教育':'cat-education','转账':'cat-transfer','理财':'cat-investment','工资':'cat-salary','还款':'cat-repayment'};
     const icon={'餐饮':'fork-knife','交通':'bus','购物':'shopping-bag','居住':'house','通讯':'phone','娱乐':'film-strip','医疗':'heartbeat','教育':'graduation-cap','转账':'arrows-left-right','理财':'trending-up','工资':'currency-cny','还款':'credit-card'};
-    document.getElementById('catSectionTitle').textContent='分类明细';
+    const cols=['#7C3AED','#A78BFA','#F472B6','#34D399','#F59E0B','#EF4444','#06B6D4','#8B5CF6'];
     const el=document.getElementById('catList');
     if(!months.length){el.innerHTML='<div style="text-align:center;padding:30px;color:var(--text-muted);font-size:0.85rem;">暂无支出</div>';return}
     el.innerHTML=months.map(m=>{
         const ed=monthly[m],cats=Object.keys(ed).sort((a,b)=>ed[b]-ed[a]);
         const total=cats.reduce((s,c)=>s+ed[c],0);
         const ms=m.slice(0,4)+'年'+parseInt(m.slice(5))+'月';
-        return '<div style="margin-bottom:20px;">'+
-            '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;padding:0 2px;">'+
-            '<span style="font-size:0.85rem;font-weight:600;color:var(--text-primary);">'+ms+'</span>'+
-            '<span style="font-size:0.75rem;color:var(--text-muted);">¥'+total.toFixed(0)+'</span></div>'+
+        return '<div style="margin-bottom:24px;">'+
+            '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;padding:0 4px;">'+
+            '<span style="font-size:0.9rem;font-weight:600;color:var(--text-primary);">'+ms+'</span>'+
+            '<span style="font-size:0.8rem;color:var(--text-muted);">¥'+total.toFixed(0)+'</span></div>'+
             cats.map((c,i)=>{
                 const p=ed[c]/total*100;
-                return '<div style="display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:10px;cursor:pointer;transition:background 0.2s;margin-bottom:2px;" '+
-                    'onclick="showCatFlows(\''+c+'\')" onmouseenter="this.style.background=\'var(--bg-hover)\'" onmouseleave="this.style.background=\'transparent\'">'+
-                    '<div class="tx-icon '+(cls[c]||'cat-other')+'" style="width:28px;height:28px;border-radius:8px;font-size:0.85rem;flex-shrink:0;"><i class="ph ph-'+(icon[c]||'dots-three')+'"></i></div>'+
+                const cid=m+'-'+c.replace(/[^a-zA-Z0-9\u4e00-\u9fa5]/g,'');
+                return '<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:14px;margin-bottom:4px;overflow:hidden;">'+
+                    '<div style="display:flex;align-items:center;gap:12px;padding:10px 12px;cursor:pointer;" onclick="toggleCatExpand(\''+cid+'\',\''+c+'\')">'+
+                    '<div class="tx-icon '+(cls[c]||'cat-other')+'"><i class="ph ph-'+(icon[c]||'dots-three')+'"></i></div>'+
                     '<div style="flex:1;min-width:0;">'+
-                    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;">'+
-                    '<span style="font-size:0.78rem;font-weight:500;color:var(--text-primary);">'+c+'</span>'+
-                    '<span style="font-size:0.72rem;color:var(--text-muted);">-¥'+(ed[c]||0).toFixed(0)+' · '+p.toFixed(1)+'%</span></div>'+
-                    '<div style="height:6px;background:var(--border);border-radius:3px;overflow:hidden;">'+
-                    '<div style="height:100%;width:'+p+'%;border-radius:3px;background:'+['#7C3AED','#A78BFA','#F472B6','#34D399','#F59E0B','#EF4444','#06B6D4','#8B5CF6'][i%8]+';transition:width 0.6s ease;"></div></div></div></div>'
+                    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">'+
+                    '<span style="font-size:0.85rem;font-weight:500;color:var(--text-primary);">'+c+'</span>'+
+                    '<span style="font-size:0.78rem;color:var(--text-muted);">-¥'+(ed[c]||0).toFixed(0)+' · '+p.toFixed(1)+'%</span></div>'+
+                    '<div style="height:8px;background:var(--border);border-radius:4px;overflow:hidden;">'+
+                    '<div style="height:100%;width:'+p+'%;border-radius:4px;background:'+cols[i%8]+';transition:width 0.6s ease;"></div></div></div>'+
+                    '<i class="ph ph-caret-down" style="color:var(--text-muted);font-size:0.9rem;transition:transform 0.25s;" id="arrow-'+cid+'"></i></div>'+
+                    '<div id="expand-'+cid+'" style="display:none;border-top:1px solid var(--border);padding:8px 12px 8px 68px;"></div></div>'
             }).join('')+'</div>'
     }).join('')
 }
-function showCatFlows(cat){
-    selectedCategory=cat;
-    document.getElementById('catListView').style.display='none';
-    document.getElementById('catDetailView').style.display='block';
-    document.getElementById('catDetailTitle').textContent=cat;
+function toggleCatExpand(cid,cat){
+    const expand=document.getElementById('expand-'+cid);
+    const arrow=document.getElementById('arrow-'+cid);
+    if(!expand)return;
+    if(expand.style.display==='block'){
+        expand.style.display='none';
+        if(arrow)arrow.style.transform='rotate(0deg)';
+        return
+    }
+    // close all other expanded sections
+    document.querySelectorAll('[id^="expand-"]').forEach(el=>{el.style.display='none'});
+    document.querySelectorAll('[id^="arrow-"]').forEach(el=>{el.style.transform='rotate(0deg)'});
+    // render flows for this category
     const filtered=allFlows.filter(f=>f.flow_type==='支出'&&(f.industry_type||'其他')===cat)
         .sort((a,b)=>(b.day||'').localeCompare(a.day||''));
-    document.getElementById('catFlowsList').innerHTML=filtered.length
-        ?filtered.map((f,i)=>{
-            const cls={'餐饮':'cat-food','交通':'cat-transport','购物':'cat-shopping','居住':'cat-housing','通讯':'cat-communication','娱乐':'cat-entertainment','医疗':'cat-medical','教育':'cat-education','转账':'cat-transfer','理财':'cat-investment','工资':'cat-salary','还款':'cat-repayment'};
-            const ic={'餐饮':'fork-knife','交通':'bus','购物':'shopping-bag','居住':'house','通讯':'phone','娱乐':'film-strip','医疗':'heartbeat','教育':'graduation-cap','转账':'arrows-left-right','理财':'trending-up','工资':'currency-cny','还款':'credit-card'};
-            const cl=f.industry_type&&cls[f.industry_type]?cls[f.industry_type]:'cat-other';
-            const ico=f.industry_type&&ic[f.industry_type]?ic[f.industry_type]:'dots-three';
-            return '<div class="tx-item" style="padding:12px 0;"><div class="tx-icon '+cl+'"><i class="ph ph-'+ico+'"></i></div><div class="tx-info"><div class="tx-title">'+(f.name||f.industry_type||'未分类')+'</div><div class="tx-meta">'+f.day+'</div></div><div class="tx-amount expense">-¥'+(f.money||0).toFixed(2)+'</div></div>'
-        }).join('')
-        :'<div style="text-align:center;padding:30px;color:var(--text-muted);font-size:0.85rem;">无记录</div>'
-}
-function backToCatList(){
-    selectedCategory=null;
-    document.getElementById('catDetailView').style.display='none';
-    document.getElementById('catListView').style.display='block'
+    expand.innerHTML=filtered.length
+        ? filtered.map(f=>'<div class="tx-item" style="padding:6px 0;min-height:auto;"><div class="tx-info"><div class="tx-title" style="font-size:0.82rem;">'+(f.name||f.industry_type||'未分类')+'</div><div class="tx-meta">'+f.day+'</div></div><div class="tx-amount expense" style="font-size:0.85rem;">-¥'+(f.money||0).toFixed(2)+'</div></div>').join('')
+        : '<div style="text-align:center;padding:12px;color:var(--text-muted);font-size:0.78rem;">无记录</div>';
+    expand.style.display='block';
+    if(arrow)arrow.style.transform='rotate(180deg)'
 }
 
 // ===== 记账弹窗 =====

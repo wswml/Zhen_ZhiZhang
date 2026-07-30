@@ -60,20 +60,10 @@
 
         <!-- ===== 分类明细 ===== -->
         <div class="page" id="page-categories" style="display:none;">
-            <div class="section-header" id="catListView">
-                <h2 class="section-title" id="catSectionTitle">支出分类</h2>
-                <span class="section-more" onclick="showCreateBookSheet()" title="管理账本"><i class="ph ph-book"></i> 管理</span>
+            <div class="section-header">
+                <h2 class="section-title">分类明细</h2>
             </div>
             <div class="transaction-list" id="catList"></div>
-            <!-- 单项分类流水详情 -->
-            <div id="catDetailView" style="display:none;">
-                <div class="section-header">
-                    <span class="section-more" onclick="backToCatList()" style="cursor:pointer;"><i class="ph ph-arrow-left"></i> 返回</span>
-                    <h2 class="section-title" id="catDetailTitle">分类</h2>
-                    <span>&nbsp;</span>
-                </div>
-                <div class="transaction-list" id="catFlowsList"></div>
-            </div>
         </div>
 
         <!-- ===== 我的 ===== -->
@@ -86,6 +76,8 @@
                 </div>
             </div>
             <div class="transaction-list" style="margin-top:16px;">
+                <div style="padding:14px 0 10px;font-size:0.9rem;font-weight:600;color:var(--text-primary);border-bottom:1px solid var(--border);margin-bottom:4px;">账本管理</div>
+                <div id="profileBookList"></div>
                 <div class="tx-item" onclick="showCreateBookSheet()"><div class="tx-icon cat-other"><i class="ph ph-plus"></i></div><div class="tx-info"><div class="tx-title">创建账本</div></div></div>
                 <div class="tx-item" onclick="showJoinBookSheet()"><div class="tx-icon cat-other"><i class="ph ph-link"></i></div><div class="tx-info"><div class="tx-title">加入账本</div></div></div>
                 <div class="tx-item" onclick="logout()"><div class="tx-icon" style="background:var(--expense-bg);color:var(--expense);"><i class="ph ph-sign-out"></i></div><div class="tx-info"><div class="tx-title" style="color:var(--expense);">退出登录</div></div></div>
@@ -167,6 +159,6 @@
     <div id="toast" class="toast"></div>
     <script src="/static/js/shared.js?v=3"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-    <script src="/static/js/main.js?v=9"></script>
+    <script src="/static/js/main.js?v=10"></script>
 </body>
 </html>
