@@ -314,28 +314,42 @@ function loadCategoryPage(){
     renderCatSummary()
 }
 function renderCatSummary(){
-    const ed={},cnt={};
+    // 按月份分组
+    const monthly={};
     allFlows.forEach(f=>{
-        if(f.flow_type==='支出'){
+        if(f.flow_type==='支出'&&f.day){
+            const m=f.day.slice(0,7);
+            if(!monthly[m])monthly[m]={};
             const c=f.industry_type||'其他';
-            ed[c]=(ed[c]||0)+(f.money||0);
-            cnt[c]=(cnt[c]||0)+1
+            monthly[m][c]=(monthly[m][c]||0)+(f.money||0)
         }
     });
-    const cats=Object.keys(ed).sort((a,b)=>ed[b]-ed[a]);
-    const total=cats.reduce((s,c)=>s+ed[c],0);
-    document.getElementById('catSectionTitle').textContent='支出分类 ('+total.toFixed(0)+')';
-    const el=document.getElementById('catList');
-    if(!cats.length){el.innerHTML='<div style="text-align:center;padding:30px;color:var(--text-muted);font-size:0.85rem;">暂无支出</div>';return}
+    const months=Object.keys(monthly).sort().reverse();
     const cls={'餐饮':'cat-food','交通':'cat-transport','购物':'cat-shopping','居住':'cat-housing','通讯':'cat-communication','娱乐':'cat-entertainment','医疗':'cat-medical','教育':'cat-education','转账':'cat-transfer','理财':'cat-investment','工资':'cat-salary','还款':'cat-repayment'};
     const icon={'餐饮':'fork-knife','交通':'bus','购物':'shopping-bag','居住':'house','通讯':'phone','娱乐':'film-strip','医疗':'heartbeat','教育':'graduation-cap','转账':'arrows-left-right','理财':'trending-up','工资':'currency-cny','还款':'credit-card'};
-    el.innerHTML=cats.map((c,i)=>{
-        const p=total>0?(ed[c]/total*100).toFixed(1):0;
-        return '<div class="tx-item stagger" style="animation-delay:'+(i*0.05)+'s;cursor:pointer;" onclick="showCatFlows(\''+c+'\')">'+
-            '<div class="tx-icon '+(cls[c]||'cat-other')+'"><i class="ph ph-'+(icon[c]||'dots-three')+'"></i></div>'+
-            '<div class="tx-info"><div class="tx-title">'+c+'</div><div class="tx-meta">'+cnt[c]+'笔</div></div>'+
-            '<div style="text-align:right;"><div class="tx-amount expense">-¥'+(ed[c]||0).toFixed(0)+'</div>'+
-            '<div style="font-size:0.7rem;color:var(--text-muted);">'+p+'%</div></div></div>'
+    document.getElementById('catSectionTitle').textContent='分类明细';
+    const el=document.getElementById('catList');
+    if(!months.length){el.innerHTML='<div style="text-align:center;padding:30px;color:var(--text-muted);font-size:0.85rem;">暂无支出</div>';return}
+    el.innerHTML=months.map(m=>{
+        const ed=monthly[m],cats=Object.keys(ed).sort((a,b)=>ed[b]-ed[a]);
+        const total=cats.reduce((s,c)=>s+ed[c],0);
+        const ms=m.slice(0,4)+'年'+parseInt(m.slice(5))+'月';
+        return '<div style="margin-bottom:20px;">'+
+            '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;padding:0 2px;">'+
+            '<span style="font-size:0.85rem;font-weight:600;color:var(--text-primary);">'+ms+'</span>'+
+            '<span style="font-size:0.75rem;color:var(--text-muted);">¥'+total.toFixed(0)+'</span></div>'+
+            cats.map((c,i)=>{
+                const p=ed[c]/total*100;
+                return '<div style="display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:10px;cursor:pointer;transition:background 0.2s;margin-bottom:2px;" '+
+                    'onclick="showCatFlows(\''+c+'\')" onmouseenter="this.style.background=\'var(--bg-hover)\'" onmouseleave="this.style.background=\'transparent\'">'+
+                    '<div class="tx-icon '+(cls[c]||'cat-other')+'" style="width:28px;height:28px;border-radius:8px;font-size:0.85rem;flex-shrink:0;"><i class="ph ph-'+(icon[c]||'dots-three')+'"></i></div>'+
+                    '<div style="flex:1;min-width:0;">'+
+                    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;">'+
+                    '<span style="font-size:0.78rem;font-weight:500;color:var(--text-primary);">'+c+'</span>'+
+                    '<span style="font-size:0.72rem;color:var(--text-muted);">-¥'+(ed[c]||0).toFixed(0)+' · '+p.toFixed(1)+'%</span></div>'+
+                    '<div style="height:6px;background:var(--border);border-radius:3px;overflow:hidden;">'+
+                    '<div style="height:100%;width:'+p+'%;border-radius:3px;background:'+['#7C3AED','#A78BFA','#F472B6','#34D399','#F59E0B','#EF4444','#06B6D4','#8B5CF6'][i%8]+';transition:width 0.6s ease;"></div></div></div></div>'
+            }).join('')+'</div>'
     }).join('')
 }
 function showCatFlows(cat){
