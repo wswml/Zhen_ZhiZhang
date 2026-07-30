@@ -11,7 +11,7 @@ async function init(){
     const[ir,sr,fr,mr]=await Promise.all([
         api('/api/entry/book/all'),
         api('/api/entry/flow/statistics?bookId='+bookId+'&month='+ms),
-        api('/api/entry/flow/all?bookId='+bookId),
+        api('/api/entry/flow/all?bookId='+bookId+'&month='+ms),
         api('/api/entry/book/members',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({book_id:bookId})})
     ]);
     if(ir.code===200){const b=ir.data.find(x=>x.book_id===bookId);if(b)document.getElementById('bookName').textContent=b.book_name}
@@ -35,7 +35,7 @@ async function loadMonth(){
     const ms=cy+'-'+String(cm).padStart(2,'0');
     const r=await api('/api/entry/flow/statistics?bookId='+bookId+'&month='+ms);
     if(r.code===200)updateStats(r.data);
-    const r2=await api('/api/entry/flow/all?bookId='+bookId);
+    const r2=await api('/api/entry/flow/all?bookId='+bookId+'&month='+ms);
     if(r2.code===200){flows=r2.data||[];renderFlows()}
 }
 

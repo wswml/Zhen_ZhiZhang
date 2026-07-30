@@ -17,17 +17,23 @@ router = APIRouter(prefix="/api/entry/flow", tags=["流水"])
 def get_all_flows(
     bookId: Optional[str] = None,      # camelCase - 前端 JS 发的参数
     book_id: Optional[str] = None,       # snake_case - 兼容
+    month: Optional[str] = None,         # 按月份筛选（如 "2026-07"）
     user_id: int = Depends(get_current_user_id),
     db: Session = Depends(get_db)
 ):
-    """获取账本所有流水记录"""
+    """获取账本流水记录，支持月份筛选"""
     # 兼容两种参数名
     target_book_id = bookId or book_id
 
     if not target_book_id:
         return error("请先选择账本")
 
-    flows = db.query(Flow).filter(Flow.book_id == target_book_id).order_by(Flow.day.desc(), Flow.id.desc()).all()
+    query = db.query(Flow).filter(Flow.book_id == target_book_id)
+
+    if month:
+        query = query.filter(Flow.day.like(f"{month}%"))
+
+    flows = query.order_by(Flow.day.desc(), Flow.id.desc()).all()
     return success(flows)
 
 
