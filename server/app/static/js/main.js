@@ -330,8 +330,6 @@ function renderCatList(){
     const months=Array.from(allMonths).sort();
     if(!months.length){el.innerHTML='<div style="text-align:center;padding:30px;color:var(--text-muted);font-size:0.85rem;">暂无支出</div>';return}
     const sortedCats=Object.keys(catTotal).sort((a,b)=>catTotal[b]-catTotal[a]);
-    const cols={'餐饮':'#9333EA','交通':'#4F46E5','购物':'#DB2777','娱乐':'#059669','居住':'#D97706','医疗':'#DC2626','教育':'#0891B2','其他':'#6B7280'};
-    const defCols=['#7C3AED','#A78BFA','#F472B6','#34D399','#F59E0B','#EF4444','#06B6D4','#8B5CF6'];
     const showLabels=months.length<=14;
     let html='';
     sortedCats.forEach((c,idx)=>{
@@ -339,32 +337,32 @@ function renderCatList(){
         const maxAmt=Math.max(...months.map(m=>mData[m]||0),1);
         const flows=catFlows[c];
         const sid=c.replace(/[^a-zA-Z0-9\u4e00-\u9fa5]/g,'');
-        const color=cols[c]||defCols[idx%8];
-        html+=`<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:16px;margin-bottom:8px;overflow:hidden;cursor:pointer;" onclick="toggleCatFlows('${sid}')" id="catCard-${sid}">
-            <div style="padding:12px 14px;">
-                <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
-                    <div class="tx-icon ${_catCls(c)}"><i class="ph ph-${_catIcon(c)}"></i></div>
-                    <div style="flex:1;">
+        const clr=idx%2===0?'#7C3AED':'rgba(124,58,237,0.35)';
+        html+=`<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;margin-bottom:6px;overflow:hidden;cursor:pointer;" onclick="toggleCatFlows('${sid}')" id="catCard-${sid}">
+            <div style="padding:10px 12px;">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+                    <div class="tx-icon ${_catCls(c)}" style="width:22px;height:22px;font-size:0.55rem;border-radius:6px;"><i class="ph ph-${_catIcon(c)}"></i></div>
+                    <div style="flex:1;min-width:0;">
                         <div style="display:flex;justify-content:space-between;align-items:center;">
-                            <span class="cat-name" style="font-size:0.9rem;font-weight:600;color:var(--text-primary);">${c}</span>
-                            <span style="font-size:0.85rem;font-weight:600;color:var(--expense);">-¥${(catTotal[c]|0).toLocaleString()}</span>
+                            <span class="cat-name" style="font-size:0.85rem;font-weight:500;color:var(--text-primary);">${c}</span>
+                            <span style="font-size:0.8rem;font-weight:600;color:var(--expense);">-¥${(catTotal[c]|0).toLocaleString()}</span>
                         </div>
-                        <div style="font-size:0.7rem;color:var(--text-muted);margin-top:1px;">${flows.length}笔</div>
                     </div>
-                    <i class="ph ph-caret-down" id="catArrow-${sid}" style="color:var(--text-muted);font-size:1rem;transition:transform 0.25s;"></i>
+                    <i class="ph ph-caret-down" id="catArrow-${sid}" style="color:var(--text-muted);font-size:0.9rem;transition:transform 0.25s;"></i>
                 </div>
-                <div style="display:flex;align-items:flex-end;gap:1px;height:28px;">
-                    ${months.map(m=>{
+                <div style="display:flex;align-items:flex-end;gap:2px;height:24px;">
+                    ${months.map((m,i)=>{
                         const amt=mData[m]||0;
-                        const barH=amt/maxAmt*24;
+                        const h=Math.max(amt/maxAmt*20,0);
+                        const isLatest=i===months.length-1;
                         return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;">
-                            <div style="width:100%;max-width:16px;height:${Math.max(barH,0)}px;background:${color};border-radius:2px 2px 0 0;opacity:0.75;"></div>
+                            <div style="width:100%;height:${h}px;background:${isLatest?'#7C3AED':clr};border-radius:3px 3px 0 0;"></div>
                         </div>`
                     }).join('')}
                 </div>
-                ${showLabels?`<div style="display:flex;gap:1px;margin-top:3px;">${months.map(m=>`<div style="flex:1;text-align:center;font-size:0.45rem;color:var(--text-muted);line-height:1;">${parseInt(m.slice(5))}</div>`).join('')}</div>`:''}
+                ${showLabels?`<div style="display:flex;gap:2px;margin-top:2px;">${months.map(m=>`<div style="flex:1;text-align:center;font-size:0.4rem;color:var(--text-muted);line-height:1;">${parseInt(m.slice(5))}</div>`).join('')}</div>`:''}
             </div>
-            <div id="catDetail-${sid}" style="display:none;border-top:1px solid var(--border);padding:8px 14px 14px;max-height:360px;overflow-y:auto;"></div>
+            <div id="catDetail-${sid}" style="display:none;border-top:1px solid var(--border);padding:6px 12px 10px;max-height:320px;overflow-y:auto;"></div>
         </div>`;
     });
     el.innerHTML=html;
@@ -386,8 +384,8 @@ function toggleCatFlows(sid){
     const filtered=allFlows.filter(f=>f.flow_type==='支出'&&(f.industry_type||'其他')===catName)
         .sort((a,b)=>(b.day||'').localeCompare(a.day||''));
     detail.innerHTML=filtered.length
-        ? filtered.map(f=>'<div class="tx-item" style="padding:6px 0;min-height:auto;"><div class="tx-icon '+_catCls(catName)+'"><i class="ph ph-'+_catIcon(catName)+'"></i></div><div class="tx-info"><div class="tx-title" style="font-size:0.82rem;">'+(f.name||catName)+'</div><div class="tx-meta">'+f.day+'</div></div><div class="tx-amount expense" style="font-size:0.85rem;">-¥'+(f.money||0).toFixed(2)+'</div></div>').join('')
-        : '<div style="text-align:center;padding:12px;color:var(--text-muted);font-size:0.78rem;">无记录</div>';
+        ? filtered.map(f=>'<div class="tx-item" style="padding:5px 0;min-height:auto;"><div class="tx-icon '+_catCls(catName)+'" style="width:20px;height:20px;font-size:0.5rem;"><i class="ph ph-'+_catIcon(catName)+'"></i></div><div class="tx-info"><div class="tx-title" style="font-size:0.8rem;">'+(f.name||catName)+'</div><div class="tx-meta">'+f.day+'</div></div><div class="tx-amount expense" style="font-size:0.82rem;">-¥'+(f.money||0).toFixed(2)+'</div></div>').join('')
+        : '<div style="text-align:center;padding:8px;color:var(--text-muted);font-size:0.78rem;">无记录</div>';
     detail.style.display='block';
     if(arrow)arrow.style.transform='rotate(180deg)'
 }
