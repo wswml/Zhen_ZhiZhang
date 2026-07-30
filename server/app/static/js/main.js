@@ -308,93 +308,90 @@ function loadProfile(){
     ).join('')
 }
 
-// ===== 分类明细 — 矩阵热力图 =====
+// ===== 分类明细 — 分类为主线 + 月度趋势条 =====
 async function loadCategoryPage(){
     if(!books.length)return;
     if(!currentBookId||!books.find(b=>b.book_id===currentBookId))currentBookId=books[0].book_id;
     if(!allFlows.length){const r=await api("/api/entry/flow/all?bookId="+currentBookId);if(r.code===200)allFlows=r.data||[]}
-    renderCatMatrix()
+    renderCatList()
 }
-function renderCatMatrix(){
-    // 按月+分类聚合
-    const monthly={};
-    allFlows.forEach(f=>{
-        if(f.flow_type==='支出'&&f.day){
-            const m=f.day.slice(0,7);
-            if(!monthly[m])monthly[m]={};
-            monthly[m][f.industry_type||'其他']=(monthly[m][f.industry_type||'其他']||0)+(f.money||0)
-        }
-    });
-    const months=Object.keys(monthly).sort().reverse();
-    const allCats=['餐饮','交通','购物','居住','娱乐','医疗','教育','其他'];
-    const cols=['#7C3AED','#A78BFA','#F472B6','#34D399','#F59E0B','#EF4444','#06B6D4','#8B5CF6'];
+function renderCatList(){
     const el=document.getElementById('catList');
+    // 按分类聚合，再按月份细分
+    const catMonthly={};const catTotal={};const catFlows={};const allMonths=new Set();
+    allFlows.forEach(f=>{
+        if(f.flow_type!=='支出'||!f.day)return;
+        const m=f.day.slice(0,7),c=f.industry_type||'其他';
+        allMonths.add(m);
+        if(!catMonthly[c]){catMonthly[c]={};catTotal[c]=0;catFlows[c]=[]}
+        catMonthly[c][m]=(catMonthly[c][m]||0)+(f.money||0);
+        catTotal[c]+=(f.money||0);
+        catFlows[c].push(f)
+    });
+    const months=Array.from(allMonths).sort();
     if(!months.length){el.innerHTML='<div style="text-align:center;padding:30px;color:var(--text-muted);font-size:0.85rem;">暂无支出</div>';return}
-    // 每分类最高值（用于热力条比例）
-    const catMax={};
-    allCats.forEach(c=>{catMax[c]=Math.max(...months.map(m=>monthly[m][c]||0),1)});
-    let html=`<div style="overflow-x:auto;white-space:nowrap;padding:0 0 8px;">
-        <div style="display:inline-block;min-width:${months.length*74+72}px;">`;
-    // 表头：分类 | 月份
-    html+=`<div style="display:flex;position:sticky;top:0;z-index:2;background:var(--bg-card);border-radius:12px 12px 0 0;overflow:hidden;">
-        <div style="width:72px;flex-shrink:0;padding:10px 6px;font-size:0.7rem;font-weight:600;color:var(--text-muted);border-bottom:2px solid var(--accent);">分类</div>`;
-    months.forEach(m=>{
-        html+=`<div style="width:74px;flex-shrink:0;padding:8px 2px;text-align:center;font-size:0.7rem;font-weight:600;color:var(--text-muted);border-bottom:2px solid var(--accent);border-left:1px solid var(--border);">${parseInt(m.slice(5))}月</div>`;
+    const sortedCats=Object.keys(catTotal).sort((a,b)=>catTotal[b]-catTotal[a]);
+    const cols={'餐饮':'#9333EA','交通':'#4F46E5','购物':'#DB2777','娱乐':'#059669','居住':'#D97706','医疗':'#DC2626','教育':'#0891B2','其他':'#6B7280'};
+    const defCols=['#7C3AED','#A78BFA','#F472B6','#34D399','#F59E0B','#EF4444','#06B6D4','#8B5CF6'];
+    const showLabels=months.length<=14;
+    let html='';
+    sortedCats.forEach((c,idx)=>{
+        const mData=catMonthly[c];
+        const maxAmt=Math.max(...months.map(m=>mData[m]||0),1);
+        const flows=catFlows[c];
+        const sid=c.replace(/[^a-zA-Z0-9\u4e00-\u9fa5]/g,'');
+        const color=cols[c]||defCols[idx%8];
+        html+=`<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:16px;margin-bottom:8px;overflow:hidden;cursor:pointer;transition:box-shadow 0.15s;box-shadow:0 1px 3px rgba(0,0,0,0.04);" onclick="toggleCatFlows('${sid}')" id="catCard-${sid}">
+            <div style="padding:12px 14px;">
+                <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+                    <div class="tx-icon ${_catCls(c)}"><i class="ph ph-${_catIcon(c)}"></i></div>
+                    <div style="flex:1;">
+                        <div style="display:flex;justify-content:space-between;align-items:center;">
+                            <span style="font-size:0.9rem;font-weight:600;color:var(--text-primary);">${c}</span>
+                            <span style="font-size:0.85rem;font-weight:600;color:var(--expense);">-¥${(catTotal[c]|0).toLocaleString()}</span>
+                        </div>
+                        <div style="font-size:0.7rem;color:var(--text-muted);margin-top:1px;">${flows.length}笔</div>
+                    </div>
+                    <i class="ph ph-caret-down" id="catArrow-${sid}" style="color:var(--text-muted);font-size:1rem;transition:transform 0.25s;"></i>
+                </div>
+                <div style="display:flex;align-items:flex-end;gap:2px;height:40px;">
+                    ${months.map(m=>{
+                        const amt=mData[m]||0;
+                        const barH=Math.max(amt/maxAmt*36,0);
+                        return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;gap:1px;">
+                            <div style="width:100%;height:${barH}px;background:${color};border-radius:2px 2px 0 0;opacity:0.8;min-height:0;transition:height 0.2s;"></div>
+                            ${showLabels?`<span style="font-size:0.5rem;color:var(--text-muted);line-height:1;">${parseInt(m.slice(5))}</span>`:''}
+                        </div>`
+                    }).join('')}
+                </div>
+            </div>
+            <div id="catDetail-${sid}" style="display:none;border-top:1px solid var(--border);padding:8px 14px 14px;max-height:360px;overflow-y:auto;"></div>
+        </div>`;
     });
-    html+=`</div>`;
-    // 分类行
-    allCats.forEach((c,ci)=>{
-        html+=`<div style="display:flex;${ci>0?'border-top:1px solid var(--border);':''}">
-            <div style="width:72px;flex-shrink:0;padding:10px 6px;display:flex;align-items:center;gap:4px;background:var(--bg-card);">
-                <div class="tx-icon ${_catCls(c)}" style="width:18px;height:18px;font-size:0.45rem;border-radius:6px;"><i class="ph ph-${_catIcon(c)}"></i></div>
-                <span style="font-size:0.75rem;font-weight:500;color:var(--text-primary);overflow:hidden;text-overflow:ellipsis;">${c}</span>
-            </div>`;
-        months.forEach(m=>{
-            const amt=monthly[m][c]||0;
-            const pct=amt/catMax[c]*100;
-            const cid=m+'-'+c.replace(/[^a-zA-Z0-9\u4e00-\u9fa5]/g,'');
-            html+=`<div id="cell-${cid}" style="width:74px;flex-shrink:0;padding:8px 2px;text-align:center;cursor:pointer;border-left:1px solid var(--border);transition:background 0.15s;" onclick="showCatFlows('${m}','${c}')">
-                <div style="font-size:0.78rem;font-weight:600;color:${amt?'var(--text-primary)':'var(--text-muted)'};">${amt?'¥'+(amt|0):'-'}</div>
-                ${amt?`<div style="height:3px;background:var(--border);border-radius:2px;margin:2px 6px 0;overflow:hidden;"><div style="height:100%;width:${pct}%;background:${cols[ci%8]};border-radius:2px;transition:width 0.3s;"></div></div>`:''}
-            </div>`;
-        });
-        html+=`</div>`;
-    });
-    html+=`</div></div>
-        <div id="catFlows" style="display:none;margin-top:10px;border-radius:14px;border:1px solid var(--border);background:var(--bg-card);padding:12px;animation:popIn 0.2s ease;"></div>`;
     el.innerHTML=html;
 }
-function showCatFlows(month,category){
-    const el=document.getElementById('catFlows');
-    // 点同一个格子切换隐藏
-    if(el.style.display==='block'&&el.dataset.month===month&&el.dataset.cat===category){
-        el.style.display='none';
-        document.querySelectorAll('[id^="cell-"]').forEach(c=>c.style.background='');
+function toggleCatFlows(sid){
+    const detail=document.getElementById('catDetail-'+sid);
+    const arrow=document.getElementById('catArrow-'+sid);
+    if(!detail)return;
+    if(detail.style.display==='block'){
+        detail.style.display='none';
+        if(arrow)arrow.style.transform='rotate(0deg)';
         return
     }
-    // 高亮选中格
-    document.querySelectorAll('[id^="cell-"]').forEach(c=>c.style.background='');
-    const cid=month+'-'+category.replace(/[^a-zA-Z0-9\u4e00-\u9fa5]/g,'');
-    const cell=document.getElementById('cell-'+cid);
-    if(cell)cell.style.background='var(--accent-bg)';
-    // 渲染明细
-    const ms=parseInt(month.slice(5))+'月';
-    const filtered=allFlows.filter(f=>f.flow_type==='支出'&&(f.industry_type||'其他')===category&&(f.day||'').startsWith(month))
+    document.querySelectorAll('[id^="catDetail-"]').forEach(el=>{el.style.display='none'});
+    document.querySelectorAll('[id^="catArrow-"]').forEach(el=>{el.style.transform='rotate(0deg)'});
+    // 从卡片获取分类名
+    const card=document.getElementById('catCard-'+sid);
+    if(!card)return;
+    const catName=card.querySelector('.tx-title')?.textContent||'';
+    const filtered=allFlows.filter(f=>f.flow_type==='支出'&&(f.industry_type||'其他')===catName)
         .sort((a,b)=>(b.day||'').localeCompare(a.day||''));
-    const total=filtered.reduce((s,f)=>s+(f.money||0),0);
-    el.style.display='block';
-    el.dataset.month=month;
-    el.dataset.cat=category;
-    el.innerHTML=
-        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">'+
-        '<div style="display:flex;align-items:center;gap:8px;"><div class="tx-icon '+_catCls(category)+'"><i class="ph ph-'+_catIcon(category)+'"></i></div>'+
-        '<span style="font-size:0.9rem;font-weight:600;color:var(--text-primary);">'+category+'</span>'+
-        '<span style="font-size:0.75rem;color:var(--text-muted);font-weight:400;">'+ms+'</span></div>'+
-        '<span style="font-size:0.85rem;font-weight:600;color:var(--expense);">-¥'+(total|0)+' <span style="font-weight:400;color:var(--text-muted);font-size:0.7rem;">'+filtered.length+'笔</span></span></div>'+
-        (filtered.length
-            ? filtered.map(f=>'<div class="tx-item" style="padding:6px 0;min-height:auto;"><div class="tx-icon '+_catCls(category)+'"><i class="ph ph-'+_catIcon(category)+'"></i></div><div class="tx-info"><div class="tx-title" style="font-size:0.82rem;">'+(f.name||category)+'</div><div class="tx-meta">'+f.day+'</div></div><div class="tx-amount expense" style="font-size:0.85rem;">-¥'+(f.money||0).toFixed(2)+'</div></div>').join('')
-            : '<div style="text-align:center;padding:12px;color:var(--text-muted);font-size:0.78rem;">无记录</div>'
-        )
+    detail.innerHTML=filtered.length
+        ? filtered.map(f=>'<div class="tx-item" style="padding:6px 0;min-height:auto;"><div class="tx-icon '+_catCls(catName)+'"><i class="ph ph-'+_catIcon(catName)+'"></i></div><div class="tx-info"><div class="tx-title" style="font-size:0.82rem;">'+(f.name||catName)+'</div><div class="tx-meta">'+f.day+'</div></div><div class="tx-amount expense" style="font-size:0.85rem;">-¥'+(f.money||0).toFixed(2)+'</div></div>').join('')
+        : '<div style="text-align:center;padding:12px;color:var(--text-muted);font-size:0.78rem;">无记录</div>';
+    detail.style.display='block';
+    if(arrow)arrow.style.transform='rotate(180deg)'
 }
 
 // ===== 记账弹窗 =====
