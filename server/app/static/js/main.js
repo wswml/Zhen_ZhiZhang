@@ -371,8 +371,9 @@ function toggleCatExpand(cid,cat){
     // close all other expanded sections
     document.querySelectorAll('[id^="expand-"]').forEach(el=>{el.style.display='none'});
     document.querySelectorAll('[id^="arrow-"]').forEach(el=>{el.style.transform='rotate(0deg)'});
-    // render flows for this category
-    const filtered=allFlows.filter(f=>f.flow_type==='支出'&&(f.industry_type||'其他')===cat)
+    // render flows for this category + month
+    const monthKey=cid.slice(0,7);
+    const filtered=allFlows.filter(f=>f.flow_type==='支出'&&(f.industry_type||'其他')===cat&&(f.day||'').startsWith(monthKey))
         .sort((a,b)=>(b.day||'').localeCompare(a.day||''));
     expand.innerHTML=filtered.length
         ? filtered.map(f=>'<div class="tx-item" style="padding:6px 0;min-height:auto;"><div class="tx-info"><div class="tx-title" style="font-size:0.82rem;">'+(f.name||f.industry_type||'未分类')+'</div><div class="tx-meta">'+f.day+'</div></div><div class="tx-amount expense" style="font-size:0.85rem;">-¥'+(f.money||0).toFixed(2)+'</div></div>').join('')
