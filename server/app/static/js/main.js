@@ -317,7 +317,6 @@ async function loadCategoryPage(){
 }
 function renderCatList(){
     const el=document.getElementById('catList');
-    // 按分类聚合，再按月份细分
     const catMonthly={};const catTotal={};const catFlows={};const allMonths=new Set();
     allFlows.forEach(f=>{
         if(f.flow_type!=='支出'||!f.day)return;
@@ -341,29 +340,29 @@ function renderCatList(){
         const flows=catFlows[c];
         const sid=c.replace(/[^a-zA-Z0-9\u4e00-\u9fa5]/g,'');
         const color=cols[c]||defCols[idx%8];
-        html+=`<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:16px;margin-bottom:8px;overflow:hidden;cursor:pointer;transition:box-shadow 0.15s;box-shadow:0 1px 3px rgba(0,0,0,0.04);" onclick="toggleCatFlows('${sid}')" id="catCard-${sid}">
+        html+=`<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:16px;margin-bottom:8px;overflow:hidden;cursor:pointer;" onclick="toggleCatFlows('${sid}')" id="catCard-${sid}">
             <div style="padding:12px 14px;">
                 <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
                     <div class="tx-icon ${_catCls(c)}"><i class="ph ph-${_catIcon(c)}"></i></div>
                     <div style="flex:1;">
                         <div style="display:flex;justify-content:space-between;align-items:center;">
-                            <span style="font-size:0.9rem;font-weight:600;color:var(--text-primary);">${c}</span>
+                            <span class="cat-name" style="font-size:0.9rem;font-weight:600;color:var(--text-primary);">${c}</span>
                             <span style="font-size:0.85rem;font-weight:600;color:var(--expense);">-¥${(catTotal[c]|0).toLocaleString()}</span>
                         </div>
                         <div style="font-size:0.7rem;color:var(--text-muted);margin-top:1px;">${flows.length}笔</div>
                     </div>
                     <i class="ph ph-caret-down" id="catArrow-${sid}" style="color:var(--text-muted);font-size:1rem;transition:transform 0.25s;"></i>
                 </div>
-                <div style="display:flex;align-items:flex-end;gap:2px;height:40px;">
+                <div style="display:flex;align-items:flex-end;gap:1px;height:28px;">
                     ${months.map(m=>{
                         const amt=mData[m]||0;
-                        const barH=Math.max(amt/maxAmt*36,0);
-                        return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;gap:1px;">
-                            <div style="width:100%;height:${barH}px;background:${color};border-radius:2px 2px 0 0;opacity:0.8;min-height:0;transition:height 0.2s;"></div>
-                            ${showLabels?`<span style="font-size:0.5rem;color:var(--text-muted);line-height:1;">${parseInt(m.slice(5))}</span>`:''}
+                        const barH=amt/maxAmt*24;
+                        return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;">
+                            <div style="width:100%;max-width:16px;height:${Math.max(barH,0)}px;background:${color};border-radius:2px 2px 0 0;opacity:0.75;"></div>
                         </div>`
                     }).join('')}
                 </div>
+                ${showLabels?`<div style="display:flex;gap:1px;margin-top:3px;">${months.map(m=>`<div style="flex:1;text-align:center;font-size:0.45rem;color:var(--text-muted);line-height:1;">${parseInt(m.slice(5))}</div>`).join('')}</div>`:''}
             </div>
             <div id="catDetail-${sid}" style="display:none;border-top:1px solid var(--border);padding:8px 14px 14px;max-height:360px;overflow-y:auto;"></div>
         </div>`;
@@ -381,10 +380,9 @@ function toggleCatFlows(sid){
     }
     document.querySelectorAll('[id^="catDetail-"]').forEach(el=>{el.style.display='none'});
     document.querySelectorAll('[id^="catArrow-"]').forEach(el=>{el.style.transform='rotate(0deg)'});
-    // 从卡片获取分类名
     const card=document.getElementById('catCard-'+sid);
     if(!card)return;
-    const catName=card.querySelector('.tx-title')?.textContent||'';
+    const catName=card.querySelector('.cat-name')?.textContent||'';
     const filtered=allFlows.filter(f=>f.flow_type==='支出'&&(f.industry_type||'其他')===catName)
         .sort((a,b)=>(b.day||'').localeCompare(a.day||''));
     detail.innerHTML=filtered.length
