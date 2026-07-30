@@ -163,7 +163,13 @@ async function loadStatsPage(){
 function drawPie(){
     if(typeof Chart==='undefined')return;
     const ed={};let total=0;
-    allFlows.forEach(f=>{if(f.flow_type==='支出'){const c=f.industry_type||'其他';ed[c]=(ed[c]||0)+(f.money||0);total+=f.money||0}});
+    // 按日历当前月份过滤
+    const ms=calYear+'-'+String(calMonth).padStart(2,'0');
+    allFlows.forEach(f=>{
+        if(f.flow_type==='支出'&&(f.day||'').startsWith(ms)){
+            const c=f.industry_type||'其他';ed[c]=(ed[c]||0)+(f.money||0);total+=f.money||0
+        }
+    });
     const cats=Object.keys(ed);
     const ctx=document.getElementById('statsPieChart')?.getContext('2d');
     if(!ctx)return;
@@ -199,7 +205,7 @@ function drawCal(){
     grid.innerHTML=html;
     document.getElementById('calLabel').textContent=calYear+'年'+calMonth+'月'
 }
-function changeCalMonth(d){calMonth+=d;if(calMonth>12){calMonth=1;calYear++}if(calMonth<1){calMonth=12;calYear--}drawCal()}
+function changeCalMonth(d){calMonth+=d;if(calMonth>12){calMonth=1;calYear++}if(calMonth<1){calMonth=12;calYear--}drawCal();drawPie()}
 
 // ===== 日期详情浮卡（从方块展开）=====
 function showDateDetail(ds,el){
