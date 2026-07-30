@@ -5,6 +5,10 @@ let calYear=new Date().getFullYear(),calMonth=new Date().getMonth()+1;
 let selectedCategory=null;
 const user=JSON.parse(localStorage.getItem('user')||sessionStorage.getItem('user')||'{}');
 
+// ===== 分类图标映射（全局，供分类明细展开复用）=====
+function _catCls(c){return {餐饮:'cat-food',交通:'cat-transport',购物:'cat-shopping',居住:'cat-housing',通讯:'cat-communication',娱乐:'cat-entertainment',医疗:'cat-medical',教育:'cat-education',转账:'cat-transfer',理财:'cat-investment',工资:'cat-salary',还款:'cat-repayment'}[c]||'cat-other'}
+function _catIcon(c){return {餐饮:'fork-knife',交通:'bus',购物:'shopping-bag',居住:'house',通讯:'phone',娱乐:'film-strip',医疗:'heartbeat',教育:'graduation-cap',转账:'arrows-left-right',理财:'trending-up',工资:'currency-cny',还款:'credit-card'}[c]||'dots-three'}
+
 // ===== 页面切换 =====
 function switchPage(name,btn){
     document.querySelectorAll('.page').forEach(p=>p.style.display='none');
@@ -80,8 +84,8 @@ function renderFlowPage(){
     const items=recent.slice(0,end);
     list.innerHTML=items.map((f,i)=>{
         const ic=f.flow_type==='收入';
-        const cls={'餐饮':'cat-food','交通':'cat-transport','购物':'cat-shopping','住房':'cat-housing','通讯':'cat-communication','娱乐':'cat-entertainment','医疗':'cat-medical','教育':'cat-education','转账':'cat-transfer','理财':'cat-investment','工资':'cat-salary','还款':'cat-repayment'}[f.industry_type]||'cat-other';
-        const icon={'餐饮':'fork-knife','交通':'bus','购物':'shopping-bag','住房':'house','通讯':'phone','娱乐':'film-strip','医疗':'heartbeat','教育':'graduation-cap','转账':'arrows-left-right','理财':'trending-up','工资':'currency-cny','还款':'credit-card'}[f.industry_type]||'dots-three';
+        const cls=_catCls(f.industry_type);
+        const icon=_catIcon(f.industry_type);
         return '<div class="tx-item stagger" style="animation-delay:'+((i%20)*0.05)+'s;"><div class="tx-icon '+cls+'"><i class="ph ph-'+icon+'"></i></div><div class="tx-info"><div class="tx-title">'+(f.name||f.industry_type||'未分类')+'</div><div class="tx-meta">'+f.day+'</div></div><div class="tx-amount '+(ic?'income':'expense')+'">'+(ic?'+':'-')+'¥'+(f.money||0).toFixed(2)+'</div></div>'
     }).join('');
     // 底部加载指示器
@@ -102,13 +106,6 @@ let flowScrollBound=false;
 function initFlowScroll(){
     if(flowScrollBound)return;
     flowScrollBound=true;
-    document.getElementById('recentList').parentElement.addEventListener('scroll',function(){
-        if(flowLoading)return;
-        const el=document.getElementById('flowLoader');
-        if(!el)return;
-        const rect=el.getBoundingClientRect();
-        if(rect.top<window.innerHeight+100)loadMoreFlows()
-    });
     window.addEventListener('scroll',function(){
         if(flowLoading)return;
         const el=document.getElementById('flowLoader');
@@ -217,8 +214,8 @@ function showDateDetail(ds,el){
     else{
         content.innerHTML=dayFlows.map(f=>{
             const ic=f.flow_type==='收入';
-            const cls={'餐饮':'cat-food','交通':'cat-transport','购物':'cat-shopping','住房':'cat-housing','通讯':'cat-communication','娱乐':'cat-entertainment','医疗':'cat-medical','教育':'cat-education','转账':'cat-transfer','理财':'cat-investment','工资':'cat-salary','还款':'cat-repayment'}[f.industry_type]||'cat-other';
-            const icon={'餐饮':'fork-knife','交通':'bus','购物':'shopping-bag','住房':'house','通讯':'phone','娱乐':'film-strip','医疗':'heartbeat','教育':'graduation-cap','转账':'arrows-left-right','理财':'trending-up','工资':'currency-cny','还款':'credit-card'}[f.industry_type]||'dots-three';
+            const cls=_catCls(f.industry_type);
+            const icon=_catIcon(f.industry_type);
             return '<div class="tx-item" style="padding:8px 0;"><div class="tx-icon '+cls+'" style="width:36px;height:36px;font-size:0.8rem;"><i class="ph ph-'+icon+'"></i></div><div class="tx-info"><div class="tx-title" style="font-size:0.85rem;">'+(f.name||f.industry_type||'未分类')+'</div><div class="tx-meta">'+(f.attribution||'我')+'</div></div><div class="tx-amount '+(ic?'income':'expense')+'" style="font-size:0.9rem;">'+(ic?'+':'-')+'¥'+(f.money||0).toFixed(2)+'</div></div>'
         }).join('')
     }
@@ -312,10 +309,10 @@ function loadProfile(){
 }
 
 // ===== 分类明细 =====
-function loadCategoryPage(){
+async function loadCategoryPage(){
     if(!books.length)return;
     if(!currentBookId||!books.find(b=>b.book_id===currentBookId))currentBookId=books[0].book_id;
-    if(!allFlows.length)return;
+    if(!allFlows.length){const r=await api("/api/entry/flow/all?bookId="+currentBookId);if(r.code===200)allFlows=r.data||[]}
     renderCatSummary()
 }
 function renderCatSummary(){
@@ -329,8 +326,6 @@ function renderCatSummary(){
         }
     });
     const months=Object.keys(monthly).sort().reverse();
-    const cls={'餐饮':'cat-food','交通':'cat-transport','购物':'cat-shopping','居住':'cat-housing','通讯':'cat-communication','娱乐':'cat-entertainment','医疗':'cat-medical','教育':'cat-education','转账':'cat-transfer','理财':'cat-investment','工资':'cat-salary','还款':'cat-repayment'};
-    const icon={'餐饮':'fork-knife','交通':'bus','购物':'shopping-bag','居住':'house','通讯':'phone','娱乐':'film-strip','医疗':'heartbeat','教育':'graduation-cap','转账':'arrows-left-right','理财':'trending-up','工资':'currency-cny','还款':'credit-card'};
     const cols=['#7C3AED','#A78BFA','#F472B6','#34D399','#F59E0B','#EF4444','#06B6D4','#8B5CF6'];
     const el=document.getElementById('catList');
     if(!months.length){el.innerHTML='<div style="text-align:center;padding:30px;color:var(--text-muted);font-size:0.85rem;">暂无支出</div>';return}
@@ -347,7 +342,7 @@ function renderCatSummary(){
                 const cid=m+'-'+c.replace(/[^a-zA-Z0-9\u4e00-\u9fa5]/g,'');
                 return '<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:14px;margin-bottom:4px;overflow:hidden;">'+
                     '<div style="display:flex;align-items:center;gap:12px;padding:10px 12px;cursor:pointer;" onclick="toggleCatExpand(\''+cid+'\',\''+c+'\')">'+
-                    '<div class="tx-icon '+(cls[c]||'cat-other')+'"><i class="ph ph-'+(icon[c]||'dots-three')+'"></i></div>'+
+                    '<div class="tx-icon '+_catCls(c)+'"><i class="ph ph-'+_catIcon(c)+'"></i></div>'+
                     '<div style="flex:1;min-width:0;">'+
                     '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">'+
                     '<span style="font-size:0.85rem;font-weight:500;color:var(--text-primary);">'+c+'</span>'+
@@ -376,7 +371,7 @@ function toggleCatExpand(cid,cat){
     const filtered=allFlows.filter(f=>f.flow_type==='支出'&&(f.industry_type||'其他')===cat&&(f.day||'').startsWith(monthKey))
         .sort((a,b)=>(b.day||'').localeCompare(a.day||''));
     expand.innerHTML=filtered.length
-        ? filtered.map(f=>'<div class="tx-item" style="padding:6px 0;min-height:auto;"><div class="tx-info"><div class="tx-title" style="font-size:0.82rem;">'+(f.name||f.industry_type||'未分类')+'</div><div class="tx-meta">'+f.day+'</div></div><div class="tx-amount expense" style="font-size:0.85rem;">-¥'+(f.money||0).toFixed(2)+'</div></div>').join('')
+        ? filtered.map(f=>'<div class="tx-item" style="padding:6px 0;min-height:auto;"><div class="tx-icon '+_catCls(cat)+'"><i class="ph ph-'+_catIcon(cat)+'"></i></div><div class="tx-info"><div class="tx-title" style="font-size:0.82rem;">'+(f.name||f.industry_type||'未分类')+'</div><div class="tx-meta">'+f.day+'</div></div><div class="tx-amount expense" style="font-size:0.85rem;">-¥'+(f.money||0).toFixed(2)+'</div></div>').join('')
         : '<div style="text-align:center;padding:12px;color:var(--text-muted);font-size:0.78rem;">无记录</div>';
     expand.style.display='block';
     if(arrow)arrow.style.transform='rotate(180deg)'
@@ -442,7 +437,7 @@ async function joinBook(){
 function numpadInput(n){
     const inp=document.getElementById('recordAmount');
     let v=inp.value.replace('¥','');
-    v=v.replace(/\\.\\d+$/,'');
+    v=v.replace(/\.\d+$/,'');
     if(v==='0')v='';
     if(n==='.'&&v.includes('.'))return;
     v=v+n;
@@ -450,7 +445,7 @@ function numpadInput(n){
 }
 function numpadBack(){
     const inp=document.getElementById('recordAmount');
-    let v=inp.value.replace('¥','').replace(/\\.\\d+$/,'');
+    let v=inp.value.replace('¥','').replace(/\.\d+$/,'');
     v=v.slice(0,-1);
     inp.value=v?('¥'+(parseFloat(v)||0).toFixed(2)):'¥0.00'
 }

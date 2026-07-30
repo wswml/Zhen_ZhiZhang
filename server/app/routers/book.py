@@ -215,11 +215,11 @@ def delete_books(data: dict, user_id: int = Depends(get_current_user_id), db: Se
         if not member or member.role != 'owner':
             continue
         # 删除关联流水
-        db.query(Flow).filter(Flow.book_id == bid).delete()
+        db.query(Flow).filter(Flow.book_id == bid).delete(synchronize_session=False)
         # 删除预算
-        db.query(Budget).filter(Budget.book_id == bid).delete()
+        db.query(Budget).filter(Budget.book_id == bid).delete(synchronize_session=False)
         # 删除成员
-        db.query(BookMember).filter(BookMember.book_id == bid).delete()
+        db.query(BookMember).filter(BookMember.book_id == bid).delete(synchronize_session=False)
         # 删除账本
         db.delete(book)
         deleted += 1

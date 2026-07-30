@@ -137,7 +137,7 @@ function inputNum(n){
     const inp=document.getElementById('modalMoney');
     let v=inp.value.replace('¥','');
     // 去掉小数部分，避免 3.00+5=3.005 的问题
-    v=v.replace(/\\.\\d+$/,'');
+    v=v.replace(/\.\d+$/,'');
     if(v==='0')v='';
     if(n==='.'&&v.includes('.'))return;
     v=v+n;
@@ -145,7 +145,7 @@ function inputNum(n){
 }
 function inputBack(){
     const inp=document.getElementById('modalMoney');
-    let v=inp.value.replace('¥','').replace(/\\.\\d+$/,'');
+    let v=inp.value.replace('¥','').replace(/\.\d+$/,'');
     v=v.slice(0,-1);
     inp.value=v?('¥'+(parseFloat(v)||0).toFixed(2)):'¥0.00'
 }
