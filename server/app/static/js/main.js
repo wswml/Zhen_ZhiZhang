@@ -2,6 +2,7 @@
 let books=[],currentBookId='',flows=[],allFlows=[],recordType='expense',homeChart=null,pieChart=null;
 let flowPage=0,flowPageSize=20,flowLoading=false;
 let calYear=new Date().getFullYear(),calMonth=new Date().getMonth()+1;
+let selectedCategory=null;
 const user=JSON.parse(localStorage.getItem('user')||sessionStorage.getItem('user')||'{}');
 
 // ===== 页面切换 =====
@@ -12,7 +13,7 @@ function switchPage(name,btn){
     if(btn)btn.classList.add('active');
     if(name==='home')loadHome();
     if(name==='stats')loadStatsPage();
-    if(name==='books')loadBookList();
+    if(name==='categories')loadCategoryPage();
     if(name==='profile')loadProfile()
 }
 
@@ -299,6 +300,65 @@ function loadProfile(){
     document.getElementById('avatarDisplay').innerHTML='<i class="ph ph-user-circle"></i> '+(user.name||user.username||'').charAt(0);
     document.getElementById('userNameDisplay').textContent=user.name||user.username||'用户';
     document.getElementById('userBooksCount').textContent=books.length+' 个账本'
+}
+
+// ===== 分类明细 =====
+function loadCategoryPage(){
+    if(!books.length)return;
+    if(!currentBookId||!books.find(b=>b.book_id===currentBookId))currentBookId=books[0].book_id;
+    selectedCategory=null;
+    document.getElementById('catListView').style.display='block';
+    document.getElementById('catDetailView').style.display='none';
+    const r=allFlows.length?{code:200}:{code:0};
+    if(!allFlows.length)return;
+    renderCatSummary()
+}
+function renderCatSummary(){
+    const ed={},cnt={};
+    allFlows.forEach(f=>{
+        if(f.flow_type==='支出'){
+            const c=f.industry_type||'其他';
+            ed[c]=(ed[c]||0)+(f.money||0);
+            cnt[c]=(cnt[c]||0)+1
+        }
+    });
+    const cats=Object.keys(ed).sort((a,b)=>ed[b]-ed[a]);
+    const total=cats.reduce((s,c)=>s+ed[c],0);
+    document.getElementById('catSectionTitle').textContent='支出分类 ('+total.toFixed(0)+')';
+    const el=document.getElementById('catList');
+    if(!cats.length){el.innerHTML='<div style="text-align:center;padding:30px;color:var(--text-muted);font-size:0.85rem;">暂无支出</div>';return}
+    const cls={'餐饮':'cat-food','交通':'cat-transport','购物':'cat-shopping','居住':'cat-housing','通讯':'cat-communication','娱乐':'cat-entertainment','医疗':'cat-medical','教育':'cat-education','转账':'cat-transfer','理财':'cat-investment','工资':'cat-salary','还款':'cat-repayment'};
+    const icon={'餐饮':'fork-knife','交通':'bus','购物':'shopping-bag','居住':'house','通讯':'phone','娱乐':'film-strip','医疗':'heartbeat','教育':'graduation-cap','转账':'arrows-left-right','理财':'trending-up','工资':'currency-cny','还款':'credit-card'};
+    el.innerHTML=cats.map((c,i)=>{
+        const p=total>0?(ed[c]/total*100).toFixed(1):0;
+        return '<div class="tx-item stagger" style="animation-delay:'+(i*0.05)+'s;cursor:pointer;" onclick="showCatFlows(\''+c+'\')">'+
+            '<div class="tx-icon '+(cls[c]||'cat-other')+'"><i class="ph ph-'+(icon[c]||'dots-three')+'"></i></div>'+
+            '<div class="tx-info"><div class="tx-title">'+c+'</div><div class="tx-meta">'+cnt[c]+'笔</div></div>'+
+            '<div style="text-align:right;"><div class="tx-amount expense">-¥'+(ed[c]||0).toFixed(0)+'</div>'+
+            '<div style="font-size:0.7rem;color:var(--text-muted);">'+p+'%</div></div></div>'
+    }).join('')
+}
+function showCatFlows(cat){
+    selectedCategory=cat;
+    document.getElementById('catListView').style.display='none';
+    document.getElementById('catDetailView').style.display='block';
+    document.getElementById('catDetailTitle').textContent=cat;
+    const filtered=allFlows.filter(f=>f.flow_type==='支出'&&(f.industry_type||'其他')===cat)
+        .sort((a,b)=>(b.day||'').localeCompare(a.day||''));
+    document.getElementById('catFlowsList').innerHTML=filtered.length
+        ?filtered.map((f,i)=>{
+            const cls={'餐饮':'cat-food','交通':'cat-transport','购物':'cat-shopping','居住':'cat-housing','通讯':'cat-communication','娱乐':'cat-entertainment','医疗':'cat-medical','教育':'cat-education','转账':'cat-transfer','理财':'cat-investment','工资':'cat-salary','还款':'cat-repayment'};
+            const ic={'餐饮':'fork-knife','交通':'bus','购物':'shopping-bag','居住':'house','通讯':'phone','娱乐':'film-strip','医疗':'heartbeat','教育':'graduation-cap','转账':'arrows-left-right','理财':'trending-up','工资':'currency-cny','还款':'credit-card'};
+            const cl=f.industry_type&&cls[f.industry_type]?cls[f.industry_type]:'cat-other';
+            const ico=f.industry_type&&ic[f.industry_type]?ic[f.industry_type]:'dots-three';
+            return '<div class="tx-item" style="padding:12px 0;"><div class="tx-icon '+cl+'"><i class="ph ph-'+ico+'"></i></div><div class="tx-info"><div class="tx-title">'+(f.name||f.industry_type||'未分类')+'</div><div class="tx-meta">'+f.day+'</div></div><div class="tx-amount expense">-¥'+(f.money||0).toFixed(2)+'</div></div>'
+        }).join('')
+        :'<div style="text-align:center;padding:30px;color:var(--text-muted);font-size:0.85rem;">无记录</div>'
+}
+function backToCatList(){
+    selectedCategory=null;
+    document.getElementById('catDetailView').style.display='none';
+    document.getElementById('catListView').style.display='block'
 }
 
 // ===== 记账弹窗 =====

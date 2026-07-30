@@ -58,11 +58,22 @@
             </div>
         </div>
 
-        <!-- ===== 账本 ===== -->
-        <div class="page" id="page-books" style="display:none;">
-            <div class="section-header"><h2 class="section-title">我的账本</h2><div style="display:flex;gap:8px;"><span class="section-more" id="bookManageBtn" onclick="toggleBookManage()"><i class="ph ph-pencil"></i> 管理</span><span class="section-more" onclick="showCreateBookSheet()"><i class="ph ph-plus"></i> 新建</span></div></div>
-            <div id="bookManageBar" style="display:none;margin-bottom:16px;"><button class="member-remove-btn" onclick="batchDeleteBooks()" style="padding:8px 20px;font-size:0.85rem;flex:0;border-radius:12px;"><i class="ph ph-trash"></i> 删除选中 <span id="bookCheckedCount">0</span></button></div>
-            <div id="bookList"></div>
+        <!-- ===== 分类明细 ===== -->
+        <div class="page" id="page-categories" style="display:none;">
+            <div class="section-header" id="catListView">
+                <h2 class="section-title" id="catSectionTitle">支出分类</h2>
+                <span class="section-more" onclick="showCreateBookSheet()" title="管理账本"><i class="ph ph-book"></i> 管理</span>
+            </div>
+            <div class="transaction-list" id="catList"></div>
+            <!-- 单项分类流水详情 -->
+            <div id="catDetailView" style="display:none;">
+                <div class="section-header">
+                    <span class="section-more" onclick="backToCatList()" style="cursor:pointer;"><i class="ph ph-arrow-left"></i> 返回</span>
+                    <h2 class="section-title" id="catDetailTitle">分类</h2>
+                    <span>&nbsp;</span>
+                </div>
+                <div class="transaction-list" id="catFlowsList"></div>
+            </div>
         </div>
 
         <!-- ===== 我的 ===== -->
@@ -87,7 +98,7 @@
         <div class="nav-item active" onclick="switchPage('home',this)"><i class="ph ph-house"></i><span>首页</span></div>
         <div class="nav-item" onclick="switchPage('stats',this)"><i class="ph ph-chart-pie-slice"></i><span>统计</span></div>
         <div class="nav-item add-btn" onclick="openRecordSheet()"><i class="ph ph-plus"></i></div>
-        <div class="nav-item" onclick="switchPage('books',this)"><i class="ph ph-book"></i><span>账本</span></div>
+        <div class="nav-item" onclick="switchPage('categories',this)"><i class="ph ph-folder-open"></i><span>分类明细</span></div>
         <div class="nav-item" onclick="switchPage('profile',this)"><i class="ph ph-user"></i><span>我的</span></div>
     </nav>
 
@@ -156,6 +167,6 @@
     <div id="toast" class="toast"></div>
     <script src="/static/js/shared.js?v=3"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-    <script src="/static/js/main.js?v=7"></script>
+    <script src="/static/js/main.js?v=8"></script>
 </body>
 </html>
