@@ -124,15 +124,16 @@ def get_statistics(
             type_stats[f.flow_type][key] = 0
         type_stats[f.flow_type][key] += f.money or 0
 
-    # 按日统计
+    # 按日统计 (day 可能含完整时间, 按天分组取前10位)
     day_stats = {}
     for f in flows:
-        if f.day not in day_stats:
-            day_stats[f.day] = {"income": 0, "expense": 0}
+        d = (f.day or "")[:10]
+        if d not in day_stats:
+            day_stats[d] = {"income": 0, "expense": 0}
         if f.flow_type == "收入":
-            day_stats[f.day]["income"] += f.money or 0
+            day_stats[d]["income"] += f.money or 0
         elif f.flow_type == "支出":
-            day_stats[f.day]["expense"] += f.money or 0
+            day_stats[d]["expense"] += f.money or 0
 
     return success({
         "total_income": total_income,

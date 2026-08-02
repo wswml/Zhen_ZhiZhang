@@ -50,7 +50,7 @@ function renderFlows(){
     l.innerHTML=s.map((f,i)=>{
         const ic=f.flow_type==='收入';
         const cls=getCls(f.industry_type);const icon=getIcon(f.industry_type);
-        return '<div class="tx-item stagger" style="animation-delay:'+((i%20)*0.05)+'s;"><div class="tx-icon '+cls+'"><i class="ph ph-'+icon+'"></i></div><div class="tx-info"><div class="tx-title">'+(f.name||f.industry_type||'未分类')+'</div><div class="tx-meta">'+f.day+' · '+(f.attribution||'我')+(f.user_id===cu.id?' <span class="tx-del" onclick="event.stopPropagation();deleteFlow('+f.id+')" style="color:var(--expense);cursor:pointer;">删除</span>':'')+'</div></div><div class="tx-amount '+(ic?'income':'expense')+'">'+(ic?'+':'-')+'¥'+(f.money||0).toFixed(2)+'</div></div>'
+        return '<div class="tx-item stagger" style="animation-delay:'+((i%20)*0.05)+'s;"><div class="tx-icon '+cls+'"><i class="ph ph-'+icon+'"></i></div><div class="tx-info"><div class="tx-title">'+(f.name||f.industry_type||'未分类')+'</div><div class="tx-meta">'+((f.day||'').length>10?(f.day.slice(5,16)):f.day)+' · '+(f.attribution||'我')+(f.user_id===cu.id?' <span class="tx-del" onclick="event.stopPropagation();deleteFlow('+f.id+')" style="color:var(--expense);cursor:pointer;">删除</span>':'')+'</div></div><div class="tx-amount '+(ic?'income':'expense')+'">'+(ic?'+':'-')+'¥'+(f.money||0).toFixed(2)+'</div></div>'
     }).join('')
 }
 function getCls(c){const m={餐饮:'cat-food',交通:'cat-transport',购物:'cat-shopping',居住:'cat-housing',娱乐:'cat-entertainment',医疗:'cat-medical',教育:'cat-education',其他:'cat-other'};return m[c]||'cat-other'}

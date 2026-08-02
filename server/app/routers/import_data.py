@@ -151,9 +151,14 @@ def import_qianji(
         if not time_str:
             continue
 
-        # 日期转换: 2026/7/19 12:58 -> 2026-07-19
-        m = re.match(r"(\d{4})/(\d{1,2})/(\d{1,2})", time_str)
-        day = f"{m.group(1)}-{int(m.group(2)):02d}-{int(m.group(3)):02d}" if m else time_str[:10]
+        # 日期转换: 2026/7/19 12:58:48 -> 2026-07-19 12:58:48 (保留完整时间用于秒级去重)
+        m = re.match(r"(\d{4})/(\d{1,2})/(\d{1,2})(?: (\d{1,2}:\d{2}(?::\d{2})?))?", time_str)
+        if m:
+            day = f"{m.group(1)}-{int(m.group(2)):02d}-{int(m.group(3)):02d}"
+            if m.group(4):
+                day += " " + m.group(4)
+        else:
+            day = time_str[:10]
 
         flow_type = row.get("类型", "支出").strip() or "支出"
 

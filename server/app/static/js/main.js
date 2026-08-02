@@ -86,7 +86,7 @@ function renderFlowPage(){
         const ic=f.flow_type==='收入';
         const cls=_catCls(f.industry_type);
         const icon=_catIcon(f.industry_type);
-        return '<div class="tx-item stagger" style="animation-delay:'+((i%20)*0.05)+'s;"><div class="tx-icon '+cls+'"><i class="ph ph-'+icon+'"></i></div><div class="tx-info"><div class="tx-title">'+(f.name||f.industry_type||'未分类')+'</div><div class="tx-meta">'+f.day+'</div></div><div class="tx-amount '+(ic?'income':'expense')+'">'+(ic?'+':'-')+'¥'+(f.money||0).toFixed(2)+'</div></div>'
+        return '<div class="tx-item stagger" style="animation-delay:'+((i%20)*0.05)+'s;"><div class="tx-icon '+cls+'"><i class="ph ph-'+icon+'"></i></div><div class="tx-info"><div class="tx-title">'+(f.name||f.industry_type||'未分类')+'</div><div class="tx-meta">'+((f.day||'').length>10?(f.day.slice(5,16)):f.day)+'</div></div><div class="tx-amount '+(ic?'income':'expense')+'">'+(ic?'+':'-')+'¥'+(f.money||0).toFixed(2)+'</div></div>'
     }).join('');
     // 底部加载指示器
     if(end<recent.length)list.innerHTML+='<div id="flowLoader" style="text-align:center;padding:16px 0;"><div class="loader-dots"><span></span><span></span><span></span></div></div>';
@@ -192,7 +192,7 @@ function drawCal(){
         const ds=calYear+'-'+String(calMonth).padStart(2,'0')+'-'+String(d).padStart(2,'0');
         const isToday=ds===today;
         let dayExp=0,dayInc=0;
-        allFlows.forEach(f=>{if(f.day===ds){if(f.flow_type==='支出')dayExp+=f.money||0;else if(f.flow_type==='收入')dayInc+=f.money||0}});
+        allFlows.forEach(f=>{if((f.day||'').slice(0,10)===ds){if(f.flow_type==='支出')dayExp+=f.money||0;else if(f.flow_type==='收入')dayInc+=f.money||0}});
         const hasData=dayExp>0||dayInc>0;
         html+='<div class="cal-day'+(isToday?' today':'')+(hasData?' has':'')+'" onclick="showDateDetail(\''+ds+'\',this)" style="'+(isToday?'border:1.5px solid var(--accent);':'')+'cursor:pointer;position:relative;">'+
             '<div class="d-num">'+d+'</div>'+
@@ -208,7 +208,7 @@ function changeCalMonth(d){calMonth+=d;if(calMonth>12){calMonth=1;calYear++}if(c
 // ===== 日期详情浮卡（从方块展开）=====
 function showDateDetail(ds,el){
     document.getElementById('popoverTitle').textContent=ds;
-    const dayFlows=allFlows.filter(f=>f.day===ds).sort((a,b)=>b.id-a.id);
+    const dayFlows=allFlows.filter(f=>(f.day||'').slice(0,10)===ds).sort((a,b)=>b.id-a.id);
     const content=document.getElementById('popoverContent');
     if(!dayFlows.length){content.innerHTML='<div style="text-align:center;padding:20px;color:var(--text-muted);font-size:0.85rem;">该日无记录</div>'}
     else{
@@ -401,7 +401,7 @@ function toggleMonthFlows(sid,month){
     const filtered=allFlows.filter(f=>f.flow_type==='支出'&&(f.industry_type||'其他')===catName&&(f.day||'').startsWith(month))
         .sort((a,b)=>(b.day||'').localeCompare(a.day||''));
     el.innerHTML=filtered.length
-        ? filtered.map(f=>'<div class="tx-item" style="padding:5px 12px 5px 52px;min-height:auto;"><div class="tx-info"><div class="tx-title" style="font-size:0.8rem;">'+(f.name||catName)+'</div><div class="tx-meta">'+f.day+'</div></div><div class="tx-amount expense" style="font-size:0.82rem;">-¥'+(f.money||0).toFixed(2)+'</div></div>').join('')
+        ? filtered.map(f=>'<div class="tx-item" style="padding:5px 12px 5px 52px;min-height:auto;"><div class="tx-info"><div class="tx-title" style="font-size:0.8rem;">'+(f.name||catName)+'</div><div class="tx-meta">'+((f.day||'').length>10?(f.day.slice(5,16)):f.day)+'</div></div><div class="tx-amount expense" style="font-size:0.82rem;">-¥'+(f.money||0).toFixed(2)+'</div></div>').join('')
         : '<div style="padding:8px 12px 8px 52px;color:var(--text-muted);font-size:0.78rem;">无记录</div>';
     el.style.display='block';
     if(arrow)arrow.style.transform='rotate(180deg)'
