@@ -215,13 +215,22 @@ def parse_rows() -> list:
 # ── 去重追加 ──
 
 def _append_no_dup(rows: list, cand: tuple):
-    """追加候选行。若 rows 已有同日+同金额+同方向+同商户的行（同一笔交易的
-    W| + U|W| 双记录，如转账），跳过 U|W| 以免重复。仅 U| 更新行调用。
+    """追加候选行。若 rows 已有同一笔交易的 W|/U|W| 双记录
+    (同日+同金额+同方向+同商户+时间差<120秒) 则跳过, 避免重复;
+    真实的两笔同金额交易 (时间差大) 不被误合并。
     """
+    def _secs(r) -> int | None:
+        try:
+            h, m, s = map(int, r[0].split(' ')[1].split(':'))
+            return h * 3600 + m * 60 + s
+        except Exception:
+            return None
     for r in rows:
         if (r[0].split(' ')[0] == cand[0].split(' ')[0]
                 and r[4] == cand[4] and r[3] == cand[3] and r[7] == cand[7]):
-            return
+            t1, t2 = _secs(r), _secs(cand)
+            if t1 is not None and t2 is not None and abs(t1 - t2) < 120:
+                return
     rows.append(cand)
 
 
