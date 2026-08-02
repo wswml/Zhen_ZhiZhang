@@ -40,6 +40,33 @@ app.mount("/static", StaticFiles(directory="app/static"), name="static")
 # 模板
 templates = Jinja2Templates(directory="app/templates")
 
+
+# ===== 自动版本号 (asset fingerprint) =====
+# 根据静态文件内容 hash 自动生成 ?v= 版本号。
+# 改 JS/CSS 后无需手动 bump cache-buster, 浏览器自动拉新文件。
+import hashlib
+
+_asset_cache = {}
+
+
+def asset_ver(path: str) -> str:
+    """返回静态文件内容的短 hash, 用作 ?v= 版本号. 文件变了版本号自动变."""
+    abs_path = os.path.join(os.path.dirname(__file__), "app/static", path)
+    try:
+        mtime = os.path.getmtime(abs_path)
+        content = open(abs_path, "rb").read()
+    except OSError:
+        return "0"
+    cached = _asset_cache.get(path)
+    if cached and cached[0] == mtime:
+        return cached[1]
+    h = hashlib.md5(content).hexdigest()[:8]
+    _asset_cache[path] = (mtime, h)
+    return h
+
+
+templates.env.globals["asset_ver"] = asset_ver
+
 # 路由
 app.include_router(auth.router)
 app.include_router(book.router)
