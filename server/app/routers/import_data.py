@@ -45,13 +45,24 @@ def import_alipay(
     content = file.file.read().decode('utf-8-sig')
     reader = csv.DictReader(io.StringIO(content))
 
+    # 增量导入：先获取已有记录的去重键 (day, money, name)
+    existing = set()
+    flows = db.query(Flow).filter(
+        Flow.book_id == book_id,
+        Flow.origin == f"{user_id}-支付宝导入"
+    ).all()
+    for f in flows:
+        existing.add((f.day, f.money, f.name))
+
     count = 0
+    skipped = 0
     for row in reader:
         trade_time = row.get('交易时间', row.get('交易创建时间', ''))
         trade_type = row.get('类型', '')
         trade_name = row.get('交易名称', row.get('商品名称', row.get('交易对方', '')))
         # 花呗还款排除
         if trade_name == "花呗":
+            skipped += 1
             continue
         amount_str = row.get('金额', row.get('金额（元）', '0'))
 
@@ -72,6 +83,12 @@ def import_alipay(
         elif amount < 0:
             amount = abs(amount)
 
+        day = trade_time[:10] if trade_time else ""
+        key = (day, amount, trade_name)
+        if key in existing:
+            skipped += 1
+            continue
+
         # 查找类型映射
         type_map = db.query(TypeRelation).filter(
             TypeRelation.book_id == book_id,
@@ -87,7 +104,7 @@ def import_alipay(
         db_flow = Flow(
             user_id=user_id,
             book_id=book_id,
-            day=trade_time[:10] if trade_time else "",
+            day=day,
             flow_type=flow_type,
             industry_type=industry_type,
             money=amount,
@@ -95,10 +112,11 @@ def import_alipay(
             origin=f"{user_id}-支付宝导入"
         )
         db.add(db_flow)
+        existing.add(key)
         count += 1
 
     db.commit()
-    return success({"count": count})
+    return success({"count": count, "skipped": skipped})
 
 
 @router.post("/qianji")
@@ -264,13 +282,24 @@ def import_wechat(
     content = file.file.read().decode('utf-8-sig')
     reader = csv.DictReader(io.StringIO(content))
 
+    # 增量导入：先获取已有记录的去重键 (day, money, name)
+    existing = set()
+    flows = db.query(Flow).filter(
+        Flow.book_id == book_id,
+        Flow.origin == f"{user_id}-微信导入"
+    ).all()
+    for f in flows:
+        existing.add((f.day, f.money, f.name))
+
     count = 0
+    skipped = 0
     for row in reader:
         trade_time = row.get('交易时间', '')
         trade_type = row.get('交易类型', '')
         trade_name = row.get('商品', row.get('交易对方', ''))
         # 花呗还款排除
         if trade_name == "花呗":
+            skipped += 1
             continue
         amount_str = row.get('金额(元)', row.get('金额', '0'))
 
@@ -287,6 +316,12 @@ def import_wechat(
             trade_name = "退款-" + trade_name
             amount = abs(amount)
 
+        day = trade_time[:10] if trade_time else ""
+        key = (day, amount, trade_name)
+        if key in existing:
+            skipped += 1
+            continue
+
         type_map = db.query(TypeRelation).filter(
             TypeRelation.book_id == book_id,
             TypeRelation.source == trade_name
@@ -300,7 +335,7 @@ def import_wechat(
         db_flow = Flow(
             user_id=user_id,
             book_id=book_id,
-            day=trade_time[:10] if trade_time else "",
+            day=day,
             flow_type=flow_type,
             industry_type=industry_type,
             money=amount,
@@ -308,7 +343,8 @@ def import_wechat(
             origin=f"{user_id}-微信导入"
         )
         db.add(db_flow)
+        existing.add(key)
         count += 1
 
     db.commit()
-    return success({"count": count})
+    return success({"count": count, "skipped": skipped})

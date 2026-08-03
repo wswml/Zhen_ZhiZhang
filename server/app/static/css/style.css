@@ -50,7 +50,7 @@ html { -webkit-tap-highlight-color: rgba(0,0,0,0); }
 ::selection { background: transparent; }
 ::-moz-selection { background: transparent; }
 body {
-    font-family: 'Noto Sans SC', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'HarmonyOS Sans SC', 'Microsoft YaHei', sans-serif;
     background: var(--bg-primary); color: var(--text-primary);
     min-height: 100vh; transition: background 0.4s ease, color 0.4s ease; overflow-x: hidden;
 }

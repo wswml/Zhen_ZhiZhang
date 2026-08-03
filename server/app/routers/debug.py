@@ -1,22 +1,47 @@
-"""调试页面 - 直接显示流水数据，不依赖前端 JS"""
-from fastapi import APIRouter, Request
-from fastapi.responses import HTMLResponse
+"""调试页面 - 直接显示流水数据，不依赖前端 JS（需登录，支持 ?token= 或 Authorization header）"""
+from fastapi import APIRouter, Request, Depends, HTTPException
+from fastapi.responses import HTMLResponse, RedirectResponse
+from jose import JWTError, jwt
+import os
+
+from app.utils.auth import SECRET_KEY, ALGORITHM
 
 router = APIRouter(tags=["调试"])
 
 
+def _resolve_user_id(request: Request) -> int | None:
+    """从 Authorization header 或 ?token= query 参数解析用户ID，失败返回 None"""
+    token = None
+    auth = request.headers.get("Authorization", "")
+    if auth.startswith("Bearer "):
+        token = auth.split(" ")[1]
+    if not token:
+        token = request.query_params.get("token")
+    if not token:
+        return None
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        return int(payload.get("sub"))
+    except (JWTError, TypeError, ValueError):
+        return None
+
+
 @router.get("/debug/{book_id}", response_class=HTMLResponse)
 def debug_book(request: Request, book_id: str):
-    """直接显示流水数据"""
-    from app.models.database import SessionLocal
-    from app.models.models import Flow, Book
-    db = SessionLocal()
-    book = db.query(Book).filter(Book.book_id == book_id).first()
-    flows = db.query(Flow).filter(Flow.book_id == book_id).order_by(Flow.day.desc()).limit(50).all()
-    db.close()
+    """直接显示流水数据 - 仅登录用户可访问"""
+    if _resolve_user_id(request) is None:
+        return RedirectResponse(url="/login")
 
-    if not book:
-        return "<h2>账本不存在</h2>"
+    from app.models.database import SessionLocal
+    from app.models.models import Flow, Book, BookMember
+    db = SessionLocal()
+    try:
+        book = db.query(Book).filter(Book.book_id == book_id).first()
+        if not book:
+            return "<h2>账本不存在</h2>"
+        flows = db.query(Flow).filter(Flow.book_id == book_id).order_by(Flow.day.desc()).limit(50).all()
+    finally:
+        db.close()
 
     rows = ""
     for f in flows:

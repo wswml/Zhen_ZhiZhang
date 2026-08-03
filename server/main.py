@@ -123,11 +123,7 @@ async def add_refresh_token_header(request: Request, call_next):
         try:
             from jose import jwt
             from datetime import datetime, timedelta
-            import os
-            from app.utils.auth import create_access_token
-
-            SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key")
-            ALGORITHM = os.getenv("ALGORITHM", "HS256")
+            from app.utils.auth import create_access_token, SECRET_KEY, ALGORITHM
 
             payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
             exp = payload.get("exp")

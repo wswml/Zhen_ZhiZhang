@@ -57,6 +57,10 @@ def classify_transaction(
     merchant = (merchant or "").strip()
     note = (note or "").strip()
 
+    # 空商户名直接兜底，不调 DeepSeek（避免无效 API 调用）
+    if not merchant:
+        return {"category": "其他", "method": "fallback", "cost": 0}
+
     # 1. 规则引擎
     cat = rule_classify(merchant, note)
     if cat:

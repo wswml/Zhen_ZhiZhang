@@ -10,7 +10,12 @@ import os
 from app.models.database import get_db
 from app.models.models import User
 
-SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key")
+# SECRET_KEY 必须显式配置，拒绝公开默认值（防止 token 伪造）
+SECRET_KEY = os.getenv("SECRET_KEY")
+if not SECRET_KEY:
+    raise RuntimeError(
+        "SECRET_KEY environment variable is required — set it in server/.env or PM2 env"
+    )
 ALGORITHM = os.getenv("ALGORITHM", "HS256")
 ACCESS_TOKEN_EXPIRE_DAYS = int(os.getenv("ACCESS_TOKEN_EXPIRE_DAYS", "7"))
 REFRESH_THRESHOLD_DAYS = 1  # Token 剩余 1 天时自动刷新
