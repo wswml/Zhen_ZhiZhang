@@ -39,7 +39,7 @@ WX_PAYSUB_R      = re.compile(r'<paysubtype>\s*(\d+)')
 WX_RECV_R        = re.compile(r'<receiver_username><!\[CDATA\[([^\]]+)\]\]></receiver_username>')
 WX_PAYER_R       = re.compile(r'<payer_username><!\[CDATA\[([^\]]+)\]\]></payer_username>')
 # 群收款: 卡片消息(type=2001, newaa/payerlist) + "你支付了…群收款"系统通知
-WX_BILLNO_R      = re.compile(r'<billno>([0-9a-f]+)</billno>|billno=([0-9a-f]+)')
+WX_BILLNO_R      = re.compile(r'<billno>([0-9a-fA-F]+)</billno>|billno=([0-9a-fA-F]+)')
 WX_PAYLIST_R     = re.compile(r'<newaa>.*?<payerlist>(.*?)</payerlist>', re.S)
 WX_RTITLE_R      = re.compile(r'<receivertitle><!\[CDATA\[([^\]]+)\]\]></receivertitle>')
 
