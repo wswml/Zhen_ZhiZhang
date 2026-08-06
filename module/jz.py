@@ -31,6 +31,18 @@ AMT_R  = re.compile(r'[¥￥]\s*([\d,]++\.?\d*)')
 WX_R    = re.compile(r'W\|(收到|发出)\|([^|]+)\|(?:[^|]*\|)?(.*)')
 ALI_R   = re.compile(r'A\|(支出|收入)\|([\d.]+)\|([^|]*)\|([^|]*)')
 
+# 微信转账 wcpayinfo 结构化字段（同一笔转账会产生初始+状态更新两条消息，
+# 方向相反导致一进一出双记；用 transferid/transcationid 识别同一笔）
+WX_TRANSFER_ID_R = re.compile(r'<transferid><!\[CDATA\[([^\]]+)\]\]></transferid>')
+WX_TRANSID_R     = re.compile(r'<transcationid><!\[CDATA\[([^\]]+)\]\]></transcationid>')
+WX_PAYSUB_R      = re.compile(r'<paysubtype>\s*(\d+)')
+WX_RECV_R        = re.compile(r'<receiver_username><!\[CDATA\[([^\]]+)\]\]></receiver_username>')
+WX_PAYER_R       = re.compile(r'<payer_username><!\[CDATA\[([^\]]+)\]\]></payer_username>')
+# 群收款: 卡片消息(type=2001, newaa/payerlist) + "你支付了…群收款"系统通知
+WX_BILLNO_R      = re.compile(r'<billno>([0-9a-f]+)</billno>|billno=([0-9a-f]+)')
+WX_PAYLIST_R     = re.compile(r'<newaa>.*?<payerlist>(.*?)</payerlist>', re.S)
+WX_RTITLE_R      = re.compile(r'<receivertitle><!\[CDATA\[([^\]]+)\]\]></receivertitle>')
+
 # 微信支付扣费凭证 提取商户名
 WX_DISPLAY_NAME_R = re.compile(r'<display_name>(?:<!\[CDATA\[)?([^<]+?)(?:\]\]>)?</display_name>')
 
@@ -70,6 +82,79 @@ def _detect_direction(content: str) -> str:
         if any(kw in title for kw in ('收款', '退款', '已退')):
             return "收入"
     return "支出"
+
+
+def _transfer_id(content: str) -> str:
+    """同一笔转账的唯一标识: transferid（无则 transcationid）。空串=无法识别"""
+    for pat in (WX_TRANSFER_ID_R, WX_TRANSID_R):
+        m = pat.search(content)
+        if m and m.group(1):
+            return m.group(1).strip()
+    return ""
+
+
+def _pay_subtype(content: str) -> str:
+    """转账消息 paysubtype: 1=初始消息(方向可靠), 3=状态更新(方向常反)"""
+    m = WX_PAYSUB_R.search(content)
+    return m.group(1) if m else ""
+
+
+def _count_wxid(content: str, counter: dict):
+    """统计转账消息 wcpayinfo 中出现的 wxid 出现次数（众数=自己的 wxid）"""
+    for pat in (WX_RECV_R, WX_PAYER_R):
+        m = pat.search(content)
+        if m and m.group(1) and '@chatroom' not in m.group(1):
+            counter[m.group(1)] = counter.get(m.group(1), 0) + 1
+
+
+def _build_group_pay_rows(me_pays: list, grp_cards: dict, self_wxid: str) -> list:
+    """'你支付了…群收款' 系统消息 → 关联同 billno 卡片 payerlist → 记支出。
+    返回钱迹行列表 (时间, 分类, 二级, 类型, 金额, '', '', 标题/群收款)。"""
+    rows = []
+    for tf, billno in me_pays:
+        card = grp_cards.get(billno)
+        if not card or not self_wxid:
+            continue
+        pl, title = card
+        for item in pl.split('/'):
+            parts = item.strip().split(',')
+            if len(parts) >= 2 and parts[0] == self_wxid:
+                try:
+                    fen = float(parts[1])
+                except ValueError:
+                    continue
+                rows.append((tf, '转账', '', '支出', f'{fen / 100:.2f}', '', '',
+                             title or '群收款'))
+                break
+    return rows
+
+
+def _prune_transfer_pairs(rows: list) -> list:
+    """清理历史成对双记: 同日期+同金额+方向相反+商户=微信转账+时间差<600s
+    → 删后出现的（先出现的=初始消息=真实方向）。用于 --rebuild 旧行清理。"""
+    drop = set()
+    n = len(rows)
+    for i in range(n):
+        a = rows[i]
+        if i in drop or a[7].strip() != '微信转账':
+            continue
+        for j in range(i + 1, n):
+            if j in drop:
+                continue
+            b = rows[j]
+            if b[7].strip() != '微信转账' or a[3] == b[3]:
+                continue
+            if a[0].split(' ')[0] != b[0].split(' ')[0] or a[4] != b[4]:
+                continue
+            try:
+                ta = datetime.strptime(a[0], '%Y/%m/%d %H:%M:%S')
+                tb = datetime.strptime(b[0], '%Y/%m/%d %H:%M:%S')
+            except ValueError:
+                continue
+            if abs((ta - tb).total_seconds()) < 600:
+                drop.add(j)
+                break
+    return [r for i, r in enumerate(rows) if i not in drop]
 
 
 # ── 支付宝轮询 ──
@@ -138,6 +223,10 @@ def parse_rows() -> list:
         return rows
 
     now = datetime.now()
+    transfer_map = {}   # transferid → (tf, direc, amount, paysubtype) 同笔转账合并
+    wxid_counter = {}   # wcpayinfo wxid 出现次数 → 众数 = 自己的 wxid
+    grp_cards = {}      # 群收款 billno → (payerlist, 标题)
+    me_pays = []        # [(tf, billno)] "你支付了…群收款" 系统消息
     with open(LOG_FILE, 'r', encoding='utf-8', errors='replace') as f:
         for line in f:
             m = LINE_R.match(line)
@@ -167,6 +256,22 @@ def parse_rows() -> list:
             wm = WX_R.match(data)
             if wm:
                 content = wm.group(3)
+                # 群收款卡片 (type=2001, 无金额, 含 <newaa>/<payerlist>) — 提前收集
+                if '<newaa>' in content:
+                    billno_m = WX_BILLNO_R.search(content)
+                    if billno_m:
+                        pl_m = WX_PAYLIST_R.search(content)
+                        title_m = WX_RTITLE_R.search(content)
+                        grp_cards[billno_m.group(1) or billno_m.group(2)] = (
+                            pl_m.group(1) if pl_m else '',
+                            title_m.group(1) if title_m else '')
+                    continue
+                # 群收款系统通知「你支付了…群收款」(无金额) — 提前收集
+                if '你支付了' in content and '群收款' in content:
+                    billno_m = WX_BILLNO_R.search(content)
+                    if billno_m:
+                        me_pays.append((tf, billno_m.group(1) or billno_m.group(2)))
+                    continue
                 amt_m = AMT_R.search(content)
                 if not amt_m:
                     continue
@@ -178,7 +283,17 @@ def parse_rows() -> list:
                     direc = '支出' if wm.group(1) == '发出' else '收入'
                     rows.append((tf, '红包', '', direc, amount, '', '', '微信红包'))
                 elif mtype == '转账':
+                    # 同一笔转账会来两条消息（初始 ps=1 方向可靠 + 状态更新 ps=3 方向反）
+                    # → 按 transferid 合并只记一条，方向取初始消息（先到/ps=1）
                     direc = '支出' if wm.group(1) == '发出' else '收入'
+                    tid = _transfer_id(content)
+                    if tid:
+                        sub = _pay_subtype(content)
+                        prev = transfer_map.get(tid)
+                        if prev is None or (sub == '1' and prev[3] != '1'):
+                            transfer_map[tid] = (tf, direc, amount, sub)
+                        _count_wxid(content, wxid_counter)
+                        continue
                     rows.append((tf, '转账', '', direc, amount, '', '', '微信转账'))
                 elif '318767153' in mtype:
                     merchant = _extract_wx_merchant(content)
@@ -203,11 +318,29 @@ def parse_rows() -> list:
                             _append_no_dup(rows, (tf, '红包', '', direc, amount, '', '', '微信红包'))
                         elif mtype == '转账':
                             direc = '支出' if wm2.group(1) == '发出' else '收入'
+                            tid = _transfer_id(content)
+                            if tid:
+                                sub = _pay_subtype(content)
+                                prev = transfer_map.get(tid)
+                                if prev is None or (sub == '1' and prev[3] != '1'):
+                                    transfer_map[tid] = (tf, direc, amount, sub)
+                                _count_wxid(content, wxid_counter)
+                                continue
                             _append_no_dup(rows, (tf, '转账', '', direc, amount, '', '', '微信转账'))
                         elif '318767153' in mtype:
                             merchant = _extract_wx_merchant(content)
                             direc = _detect_direction(content)
                             _append_no_dup(rows, (tf, '其他', '', direc, amount, '', '', merchant))
+
+    # 转账合并结果输出（transferid 去重后，方向=初始消息）
+    for tf, direc, amount, _sub in sorted(transfer_map.values(), key=lambda x: x[0]):
+        rows.append((tf, '转账', '', direc, amount, '', '', '微信转账'))
+    # 群收款「你支付了」→ 支出（金额取同 billno 卡片 payerlist 中自己的份额）
+    if me_pays:
+        self_wxid = max(wxid_counter, key=wxid_counter.get) if wxid_counter else ''
+        rows.extend(_build_group_pay_rows(me_pays, grp_cards, self_wxid))
+        if not self_wxid:
+            print("  ⚠ 群收款: 无法自动识别自己 wxid，跳过「你支付了群收款」记录")
 
     return rows
 
@@ -334,11 +467,14 @@ def rebuild_csv():
                 if _minute_key(r) not in new_min_keys:
                     kept_old.append(r)
 
+    # 新旧合并后统一清理成对双记转账（同金额+方向相反+<10分钟 → 只保留先出现的真实方向）
+    all_rows = _prune_transfer_pairs(sorted(kept_old + new_rows, key=lambda x: x[0]))
+
     with open(CSV_FILE, 'w', encoding='utf-8-sig', newline='') as f:
         f.write(CSV_HEADER + '\n')
-        for r in sorted(kept_old + new_rows, key=lambda x: x[0]):
+        for r in all_rows:
             f.write(','.join(r) + ',,,,,,\n')
-    print(f"  重建完成: 新 {len(new_rows)} 条 + 保留旧 {len(kept_old)} 条 = {len(kept_old) + len(new_rows)} 条")
+    print(f"  重建完成: 新 {len(new_rows)} 条 + 保留旧 {len(kept_old)} 条 = {len(all_rows)} 条")
 
 
 def main():
