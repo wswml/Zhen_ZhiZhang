@@ -1,6 +1,6 @@
 /* 珍智账 SPA — 首页按月 · 统计日历 · 日期抽屉 */
 let books=[],currentBookId='',flows=[],allFlows=[],recordType='expense',homeChart=null,pieChart=null;
-let flowPage=0,flowPageSize=20,flowLoading=false;
+let flowPage=0,flowPageSize=20,flowLoading=false,sortedFlows=[];
 let calYear=new Date().getFullYear(),calMonth=new Date().getMonth()+1;
 let selectedCategory=null;
 const user=JSON.parse(localStorage.getItem('user')||sessionStorage.getItem('user')||'{}');
@@ -68,50 +68,64 @@ function renderHome(){
     animateNumber(document.getElementById('balance'), inc-exp);
     document.getElementById('incomeDisplay').textContent='¥'+inc.toFixed(0);
     document.getElementById('expenseDisplay').textContent='¥'+exp.toFixed(0);
-    // 最近 — 分页渲染
-    const recent=allFlows.sort((a,b)=>(b.day||'').localeCompare(a.day||''));
+    // 最近 — 分页渲染（排序缓存一次，滚动中不再重复 sort）
+    sortedFlows=allFlows.slice().sort((a,b)=>(b.day||'').localeCompare(a.day||''));
     const list=document.getElementById('recentList');
-    if(!recent.length){list.innerHTML='<div style="text-align:center;padding:30px;color:var(--text-muted);font-size:0.85rem;">还没有记录</div>';return}
-    flowPage=Math.min(flowPage, Math.ceil(recent.length/flowPageSize)-1);
-    renderFlowPage();
+    if(!sortedFlows.length){list.innerHTML='<div style="text-align:center;padding:30px;color:var(--text-muted);font-size:0.85rem;">还没有记录</div>';return}
+    flowPage=0;
+    list.innerHTML='';
+    appendFlowPage(list);
     drawMonthlyChart();
     initFlowScroll()
 }
-function renderFlowPage(){
-    const recent=allFlows.sort((a,b)=>(b.day||'').localeCompare(a.day||''));
-    const list=document.getElementById('recentList');
-    const end=(flowPage+1)*flowPageSize;
-    const items=recent.slice(0,end);
-    list.innerHTML=items.map((f,i)=>{
+// 增量追加一页（只 append 新行，不重建已渲染 DOM）
+function appendFlowPage(list){
+    const start=flowPage*flowPageSize;
+    const end=start+flowPageSize;
+    const items=sortedFlows.slice(start,end);
+    if(!items.length)return;
+    list.insertAdjacentHTML('beforeend',items.map((f,i)=>{
         const ic=f.flow_type==='收入';
         const cls=_catCls(f.industry_type);
         const icon=_catIcon(f.industry_type);
         return '<div class="tx-item stagger" style="animation-delay:'+((i%20)*0.05)+'s;"><div class="tx-icon '+cls+'"><i class="ph ph-'+icon+'"></i></div><div class="tx-info"><div class="tx-title">'+(f.name||f.industry_type||'未分类')+'</div><div class="tx-meta">'+((f.day||'').length>10?(f.day.slice(5,16)):f.day)+'</div></div><div class="tx-amount '+(ic?'income':'expense')+'">'+(ic?'+':'-')+'¥'+(f.money||0).toFixed(2)+'</div></div>'
-    }).join('');
-    // 底部加载指示器
-    if(end<recent.length)list.innerHTML+='<div id="flowLoader" style="text-align:center;padding:16px 0;"><div class="loader-dots"><span></span><span></span><span></span></div></div>';
+    }).join(''));
+    // 底部加载指示器 — 只保留一个，先清后加
+    let loader=document.getElementById('flowLoader');
+    if(loader)loader.remove();
+    if(end<sortedFlows.length){
+        loader=document.createElement('div');
+        loader.id='flowLoader';
+        loader.style.cssText='text-align:center;padding:16px 0;';
+        loader.innerHTML='<div class="loader-dots"><span></span><span></span><span></span></div>';
+        list.appendChild(loader)
+    }
 }
 function loadMoreFlows(){
     if(flowLoading)return;
-    const recent=allFlows.sort((a,b)=>(b.day||'').localeCompare(a.day||''));
     const end=(flowPage+1)*flowPageSize;
-    if(end>=recent.length)return;
+    if(end>=sortedFlows.length)return;
     flowLoading=true;
     flowPage++;
-    renderFlowPage();
+    appendFlowPage(document.getElementById('recentList'));
     flowLoading=false
 }
-// 滚动加载
-let flowScrollBound=false;
+// 滚动加载 — rAF 节流，避免每帧多次触发 reflow
+let flowScrollBound=false,flowScrollTicking=false;
 function initFlowScroll(){
     if(flowScrollBound)return;
     flowScrollBound=true;
     window.addEventListener('scroll',function(){
-        if(flowLoading)return;
-        const el=document.getElementById('flowLoader');
-        if(!el)return;
-        const rect=el.getBoundingClientRect();
-        if(rect.top<window.innerHeight+100)loadMoreFlows()
+        if(flowScrollTicking)return;
+        flowScrollTicking=true;
+        requestAnimationFrame(function(){
+            flowScrollTicking=false;
+            if(flowLoading)return;
+            const el=document.getElementById('flowLoader');
+            if(!el)return;
+            const rect=el.getBoundingClientRect();
+            if(rect.top<window.innerHeight+100)loadMoreFlows()
+        })
     })
 }
 
