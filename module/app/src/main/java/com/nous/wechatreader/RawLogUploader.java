@@ -187,7 +187,7 @@ public class RawLogUploader {
     }
 
     /** 轻量 RandomAccessFile 包装: 从 offset 读 UTF-8 行，记录结束位置。 */
-    private static class RandomAccessFileCompat {
+    private static class RandomAccessFileCompat implements AutoCloseable {
         private final java.io.RandomAccessFile raf;
         private long pointer;
 
@@ -211,6 +211,11 @@ public class RawLogUploader {
 
         long getFilePointer() {
             return pointer;
+        }
+
+        @Override
+        public void close() throws Exception {
+            raf.close();
         }
     }
 }
