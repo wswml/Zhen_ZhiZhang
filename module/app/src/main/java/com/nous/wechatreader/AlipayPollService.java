@@ -147,9 +147,12 @@ public class AlipayPollService extends Service {
     /** 支付宝轮询：su 复制 DB → 读 gmtCreate 增量 → 追加 A| 行到 messages.log */
     private void pollAlipay() {
         try {
+            // ⚠️ 必须 su -M (--mount-master)：app 进程的 mount namespace 被隔离
+            // (zygote 派生进程只能看到自身+gms等白名单包)，普通 su 继承隔离视图，
+            // cp 会报 No such file。su -M 强制切到全局 mount namespace。
             ProcessBuilder pb = new ProcessBuilder(
                     "/system/bin/sh", "-c",
-                    "su -c 'cp " + ALIPAY_DB + " " + ALIPAY_TMP
+                    "su -M -c 'cp " + ALIPAY_DB + " " + ALIPAY_TMP
                     + " && chmod 644 " + ALIPAY_TMP + "'"
             );
             Process p = pb.start();
