@@ -233,8 +233,8 @@ public class AlipayPollService extends Service {
         }
     }
 
-    /** 通过 su -M 追加文本到文件（root 写入，绕开 app 存储权限） */
-    private boolean appendViaSu(String path, String content) {
+    /** 通过 su -M 写文件（root 写入，绕开 app 存储权限）。append=false 覆盖。 */
+    private boolean suWrite(String path, String content, boolean append) {
         try {
             // 内容经 base64 传递，避免 shell 转义问题
             String b64 = android.util.Base64.encodeToString(
@@ -243,7 +243,7 @@ public class AlipayPollService extends Service {
             ProcessBuilder pb = new ProcessBuilder(
                     "/system/bin/sh", "-c",
                     "su -M -c 'mkdir -p $(dirname " + path + ") && "
-                    + "echo " + b64 + " | base64 -d >> " + path + "'"
+                    + "echo " + b64 + " | base64 -d " + (append ? ">>" : ">") + " " + path + "'"
             );
             Process p = pb.start();
             StringBuilder errSb = new StringBuilder();
@@ -254,21 +254,26 @@ public class AlipayPollService extends Service {
             }
             p.waitFor();
             if (p.exitValue() != 0) {
-                Log.w(TAG, "su append 失败 exit=" + p.exitValue() + " err="
+                Log.w(TAG, "su 写失败 exit=" + p.exitValue() + " err="
                         + errSb.toString().trim());
                 return false;
             }
             return true;
         } catch (Exception e) {
-            Log.w(TAG, "su append 异常: " + e.getMessage());
+            Log.w(TAG, "su 写异常: " + e.getMessage());
             return false;
         }
     }
 
+    /** 追加写（messages.log 日志） */
+    private boolean appendViaSu(String path, String content) {
+        return suWrite(path, content, true);
+    }
+
     private void writeLastGmt(long gmt) {
-        // 模块进程无 /sdcard 写权限，用 su -M 写
+        // 模块进程无 /sdcard 写权限，用 su -M 覆盖写（状态文件必须覆盖，不能追加）
         try {
-            appendViaSu(ALIPAY_LAST_ID_FILE, String.valueOf(gmt));
+            suWrite(ALIPAY_LAST_ID_FILE, String.valueOf(gmt), false);
         } catch (Exception ignored) {}
     }
 }
