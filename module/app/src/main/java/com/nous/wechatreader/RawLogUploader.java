@@ -21,6 +21,9 @@ import java.nio.charset.StandardCharsets;
  *   因此上传失败(网络)时只需保留 offset 不推进，下次重试即可
  * - messages.log 被截断时 offset 会超过文件长度 → 重置为 0 重新全量上传
  *   (服务器按 (day,money,name) 去重，幂等)
+ * - 双环境适配:
+ *   * 微信进程(有 /sdcard 权限) → 直接文件读写
+ *   * 模块服务进程(无存储权限但有 root) → 读/写失败时 fallback su -M
  */
 public class RawLogUploader {
 
@@ -52,37 +55,177 @@ public class RawLogUploader {
         sLastUploadAttempt = now;
 
         try {
-            File logFile = new File(LOG_FILE);
-            if (!logFile.exists()) return false;
+            long fileLen = fileLength();
+            if (fileLen < 0) return false;
 
-            long offset = readOffset(logFile.length());
+            long offset = readOffset(fileLen);
 
-            // 读新增行
-            StringBuilder sb = new StringBuilder();
-            try (RandomAccessFileCompat raf = new RandomAccessFileCompat(logFile, offset)) {
-                String line;
-                int count = 0;
-                while ((line = raf.readLine()) != null && count < MAX_LINES_PER_BATCH) {
-                    sb.append(line).append('\n');
-                    count++;
-                }
-                if (count == 0) return false;
-                if (count >= MAX_LINES_PER_BATCH) {
-                    // 一批没读完，不推进 offset，下次继续(服务器幂等)
-                    Log.i(TAG, "批次满 " + count + " 行，下次继续");
-                    return uploadLines(sb.toString(), offset);
-                }
-                // 全部读完 → 推进 offset
-                long newOffset = raf.getFilePointer();
-                boolean ok = uploadLines(sb.toString(), offset);
-                if (ok) writeOffset(newOffset);
-                return ok;
+            // 读新增行（普通读失败时 fallback su -M）
+            String newContent = readFromOffset(offset);
+            if (newContent == null || newContent.isEmpty()) return false;
+            int count = newContent.split("\n", -1).length - 1;
+            if (count == 0) return false;
+
+            if (count >= MAX_LINES_PER_BATCH) {
+                // 一批没读完，不推进 offset，下次继续(服务器幂等)
+                Log.i(TAG, "批次满 " + count + " 行，下次继续");
+                return uploadLines(newContent, offset);
             }
+            // 全部读完 → 推进 offset
+            long newOffset = offset + contentBytes(newContent);
+            boolean ok = uploadLines(newContent, offset);
+            if (ok) writeOffset(newOffset);
+            return ok;
         } catch (Exception e) {
             Log.w(TAG, "上传失败: " + e.getMessage());
             return false;
         }
     }
+
+    // ── 文件读写（普通 → su -M fallback）──
+
+    private static long fileLength() {
+        try {
+            return new File(LOG_FILE).length();
+        } catch (Exception e) {
+            return -1;
+        }
+    }
+
+    /** 从 offset 读增量行。返回 null 表示失败。 */
+    private static String readFromOffset(long offset) {
+        // 先试普通读
+        try {
+            StringBuilder sb = new StringBuilder();
+            try (java.io.RandomAccessFile raf =
+                         new java.io.RandomAccessFile(LOG_FILE, "r")) {
+                raf.seek(offset);
+                String line;
+                int count = 0;
+                while ((line = raf.readLine()) != null
+                        && count < MAX_LINES_PER_BATCH) {
+                    // readLine 是 ISO-8859-1 字节解码，转回 UTF-8
+                    sb.append(new String(line.getBytes(StandardCharsets.ISO_8859_1),
+                            StandardCharsets.UTF_8)).append('\n');
+                    count++;
+                }
+            }
+            return sb.length() > 0 ? sb.toString() : "";
+        } catch (Exception e) {
+            Log.d(TAG, "普通读失败(" + e.getMessage() + ")，尝试 su -M");
+        }
+        // fallback: su -M cat 全文件再截取
+        try {
+            String full = execSu("cat " + LOG_FILE);
+            if (full == null) return null;
+            if (offset >= full.getBytes(StandardCharsets.UTF_8).length) return "";
+            // 按字节截取 offset 之后，再按行切
+            byte[] bytes = full.getBytes(StandardCharsets.UTF_8);
+            String tail = new String(bytes, (int) offset,
+                    bytes.length - (int) offset, StandardCharsets.UTF_8);
+            // 截断到 MAX_LINES 行
+            String[] lines = tail.split("\n", -1);
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < lines.length && i < MAX_LINES_PER_BATCH; i++) {
+                sb.append(lines[i]).append('\n');
+            }
+            return sb.length() > 0 ? sb.toString() : "";
+        } catch (Exception e) {
+            Log.w(TAG, "su 读失败: " + e.getMessage());
+            return null;
+        }
+    }
+
+    private static long readOffset(long fileLen) {
+        try {
+            String s = readSmallFile(OFFSET_FILE);
+            if (s == null) return 0;
+            long off = Long.parseLong(s.trim());
+            if (off > fileLen) return 0;  // 日志被截断，重新全量
+            return off;
+        } catch (Exception e) {
+            return 0;
+        }
+    }
+
+    private static void writeOffset(long offset) {
+        writeSmallFile(OFFSET_FILE, String.valueOf(offset));
+    }
+
+    /** 读小文件（offset 文件），普通失败走 su -M */
+    private static String readSmallFile(String path) {
+        try {
+            File f = new File(path);
+            if (!f.exists()) return null;
+            try (BufferedReader br = new BufferedReader(
+                    new InputStreamReader(new FileInputStream(f), StandardCharsets.UTF_8))) {
+                return br.readLine();
+            }
+        } catch (Exception e) {
+            Log.d(TAG, "普通读 " + path + " 失败，走 su");
+        }
+        return execSu("cat " + path);
+    }
+
+    /** 写小文件（offset 文件），普通失败走 su -M */
+    private static void writeSmallFile(String path, String content) {
+        try {
+            File f = new File(path);
+            f.getParentFile().mkdirs();
+            try (FileOutputStream fos = new FileOutputStream(f)) {
+                fos.write(content.getBytes(StandardCharsets.UTF_8));
+                fos.flush();
+            }
+            return;
+        } catch (Exception e) {
+            Log.d(TAG, "普通写 " + path + " 失败，走 su");
+        }
+        try {
+            String b64 = android.util.Base64.encodeToString(
+                    content.getBytes(StandardCharsets.UTF_8),
+                    android.util.Base64.NO_WRAP);
+            execSu("echo " + b64 + " | base64 -d > " + path);
+        } catch (Exception ignored) {}
+    }
+
+    /** 执行 su -M 命令并返回 stdout（null=失败） */
+    private static String execSu(String cmd) {
+        try {
+            ProcessBuilder pb = new ProcessBuilder(
+                    "/system/bin/sh", "-c",
+                    "su -M -c '" + cmd.replace("'", "'\\''") + "'"
+            );
+            Process p = pb.start();
+            StringBuilder out = new StringBuilder();
+            try (BufferedReader br = new BufferedReader(
+                    new InputStreamReader(p.getInputStream(), StandardCharsets.UTF_8))) {
+                String line;
+                while ((line = br.readLine()) != null) out.append(line).append('\n');
+            }
+            StringBuilder errSb = new StringBuilder();
+            try (BufferedReader br = new BufferedReader(
+                    new InputStreamReader(p.getErrorStream(), StandardCharsets.UTF_8))) {
+                String line;
+                while ((line = br.readLine()) != null) errSb.append(line).append('\n');
+            }
+            p.waitFor();
+            if (p.exitValue() != 0) {
+                Log.w(TAG, "su 命令失败 exit=" + p.exitValue()
+                        + " err=" + errSb.toString().trim());
+                return null;
+            }
+            return out.toString();
+        } catch (Exception e) {
+            Log.w(TAG, "su 命令异常: " + e.getMessage());
+            return null;
+        }
+    }
+
+    private static long contentBytes(String s) {
+        return s.getBytes(StandardCharsets.UTF_8).length;
+    }
+
+    // ── 上传 ──
 
     private static boolean uploadLines(String lines, long offset) {
         HttpURLConnection conn = null;
@@ -156,66 +299,5 @@ public class RawLogUploader {
             }
         }
         return sb.toString();
-    }
-
-    private static long readOffset(long fileLen) {
-        try {
-            File f = new File(OFFSET_FILE);
-            if (!f.exists()) return 0;
-            try (BufferedReader br = new BufferedReader(
-                    new InputStreamReader(new FileInputStream(f), StandardCharsets.UTF_8))) {
-                String line = br.readLine();
-                if (line == null) return 0;
-                long off = Long.parseLong(line.trim());
-                if (off > fileLen) return 0;  // 日志被截断，重新全量
-                return off;
-            }
-        } catch (Exception e) {
-            return 0;
-        }
-    }
-
-    private static void writeOffset(long offset) {
-        try {
-            File f = new File(OFFSET_FILE);
-            f.getParentFile().mkdirs();
-            try (FileOutputStream fos = new FileOutputStream(f)) {
-                fos.write(String.valueOf(offset).getBytes(StandardCharsets.UTF_8));
-                fos.flush();
-            }
-        } catch (Exception ignored) {}
-    }
-
-    /** 轻量 RandomAccessFile 包装: 从 offset 读 UTF-8 行，记录结束位置。 */
-    private static class RandomAccessFileCompat implements AutoCloseable {
-        private final java.io.RandomAccessFile raf;
-        private long pointer;
-
-        RandomAccessFileCompat(File file, long offset) throws Exception {
-            raf = new java.io.RandomAccessFile(file, "r");
-            raf.seek(offset);
-            pointer = offset;
-        }
-
-        /**
-         * 读一行。raf.readLine() 按 ISO-8859-1 逐字节解码(每个 char=1 字节)，
-         * 因此把字符串转回字节再按 UTF-8 解码即得原始文本。不会丢中文。
-         */
-        String readLine() throws Exception {
-            String latin1 = raf.readLine();
-            if (latin1 == null) return null;
-            pointer = raf.getFilePointer();
-            return new String(latin1.getBytes(StandardCharsets.ISO_8859_1),
-                    StandardCharsets.UTF_8);
-        }
-
-        long getFilePointer() {
-            return pointer;
-        }
-
-        @Override
-        public void close() throws Exception {
-            raf.close();
-        }
     }
 }

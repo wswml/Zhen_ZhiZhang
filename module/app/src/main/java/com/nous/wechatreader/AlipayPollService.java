@@ -220,29 +220,55 @@ public class AlipayPollService extends Service {
             db.close();
 
             if (sb.length() > 0) {
-                File logFile = new File(LOG_FILE);
-                logFile.getParentFile().mkdirs();
-                try (FileOutputStream fos = new FileOutputStream(logFile, true);
-                     OutputStreamWriter w = new OutputStreamWriter(fos, StandardCharsets.UTF_8)) {
-                    w.write(sb.toString());
-                    w.flush();
+                // 用 su -M 追加（模块进程无 /sdcard 存储权限，EACCES；root 写入绕开）
+                if (appendViaSu(LOG_FILE, sb.toString())) {
+                    writeLastGmt(maxGmt);
+                    Log.i(TAG, "支付宝轮询: 新增 " + sb.toString().split("\n").length + " 条");
+                } else {
+                    Log.w(TAG, "支付宝轮询: 写入 messages.log 失败 (su append)");
                 }
-                writeLastGmt(maxGmt);
-                Log.i(TAG, "支付宝轮询: 新增 " + sb.toString().split("\n").length + " 条");
             }
         } catch (Exception e) {
             Log.e(TAG, "支付宝轮询异常: " + e.getMessage());
         }
     }
 
-    private void writeLastGmt(long gmt) {
+    /** 通过 su -M 追加文本到文件（root 写入，绕开 app 存储权限） */
+    private boolean appendViaSu(String path, String content) {
         try {
-            File f = new File(ALIPAY_LAST_ID_FILE);
-            f.getParentFile().mkdirs();
-            try (FileOutputStream fos = new FileOutputStream(f)) {
-                fos.write(String.valueOf(gmt).getBytes(StandardCharsets.UTF_8));
-                fos.flush();
+            // 内容经 base64 传递，避免 shell 转义问题
+            String b64 = android.util.Base64.encodeToString(
+                    content.getBytes(StandardCharsets.UTF_8),
+                    android.util.Base64.NO_WRAP);
+            ProcessBuilder pb = new ProcessBuilder(
+                    "/system/bin/sh", "-c",
+                    "su -M -c 'mkdir -p $(dirname " + path + ") && "
+                    + "echo " + b64 + " | base64 -d >> " + path + "'"
+            );
+            Process p = pb.start();
+            StringBuilder errSb = new StringBuilder();
+            try (BufferedReader br = new BufferedReader(
+                    new InputStreamReader(p.getErrorStream(), StandardCharsets.UTF_8))) {
+                String line;
+                while ((line = br.readLine()) != null) errSb.append(line).append('\n');
             }
+            p.waitFor();
+            if (p.exitValue() != 0) {
+                Log.w(TAG, "su append 失败 exit=" + p.exitValue() + " err="
+                        + errSb.toString().trim());
+                return false;
+            }
+            return true;
+        } catch (Exception e) {
+            Log.w(TAG, "su append 异常: " + e.getMessage());
+            return false;
+        }
+    }
+
+    private void writeLastGmt(long gmt) {
+        // 模块进程无 /sdcard 写权限，用 su -M 写
+        try {
+            appendViaSu(ALIPAY_LAST_ID_FILE, String.valueOf(gmt));
         } catch (Exception ignored) {}
     }
 }
