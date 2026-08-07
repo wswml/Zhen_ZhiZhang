@@ -210,11 +210,11 @@ public class WechatReader implements IXposedHookLoadPackage {
                 if (type != 436207665 && type != 419430449 && type != 268435505)
                     return;
 
-                String line = "U|" + formatWechat(cv);
-                if (line != null) {
+                String f = formatWechat(cv);
+                if (f != null) {
                     markActive();
                     long ts = System.currentTimeMillis();
-                    MessageWriter.write(line, ts);
+                    MessageWriter.write("U|" + f, ts);
                 }
             } catch (Throwable ignored) {}
         }

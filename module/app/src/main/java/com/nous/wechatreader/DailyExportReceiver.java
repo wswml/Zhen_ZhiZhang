@@ -7,8 +7,6 @@ import android.app.PendingIntent;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
-import android.database.Cursor;
-import android.database.sqlite.SQLiteDatabase;
 import android.os.Build;
 import android.util.Log;
 
@@ -24,7 +22,6 @@ import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import org.json.JSONObject;
 
 /**
  * 每日账单导出 + 通知。
@@ -42,15 +39,7 @@ public class DailyExportReceiver extends BroadcastReceiver {
     private static final String OUT_FILE =
             "/storage/emulated/0/Download/qianji_import.csv";
 
-    // 支付宝轮询
-    private static final String ALIPAY_DB =
-            "/data/data/com.eg.android.AlipayGphone/databases/messagebox.db";
-    private static final String ALIPAY_TMP =
-            "/data/local/tmp/alipay_export.db";
-    private static final String ALIPAY_LAST_ID_FILE =
-            "/storage/emulated/0/Download/WechatReader/.alipay_last_id";
 
-    // 日志行正则: [MM-dd HH:mm:ss] <data>
     private static final Pattern LINE_RE =
             Pattern.compile("\\[(\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2})\\] (.+)");
 
@@ -147,137 +136,9 @@ public class DailyExportReceiver extends BroadcastReceiver {
         }).start();
     }
 
-    // ── 支付宝轮询（通过 su 复制 DB → Java SQLite 读取）────
 
-    private void pollAlipay() {
-        try {
-            // 1. su 复制数据库到可读位置（通过 shell 查找 su）
-            ProcessBuilder pb = new ProcessBuilder(
-                    "/system/bin/sh", "-c",
-                    "su -c 'cp " + ALIPAY_DB + " " + ALIPAY_TMP
-                    + " && chmod 644 " + ALIPAY_TMP + "'"
-            );
-            Process p = pb.start();
-            p.waitFor();
-            if (p.exitValue() != 0) {
-                Log.w(TAG, "支付宝 DB 复制失败");
-                return;
-            }
 
-            // 2. 读取上次轮询 id
-            String lastId = "";
-            File idFile = new File(ALIPAY_LAST_ID_FILE);
-            if (idFile.exists()) {
-                try (BufferedReader br = new BufferedReader(
-                        new InputStreamReader(new FileInputStream(idFile)))) {
-                    lastId = br.readLine();
-                }
-            }
-
-            // 3. 查询新记录
-            SQLiteDatabase db = SQLiteDatabase.openDatabase(
-                    ALIPAY_TMP, null, SQLiteDatabase.OPEN_READONLY);
-            Cursor c;
-            if (lastId == null || lastId.isEmpty()) {
-                // 首次运行：拿最后一条的 id 做标记，不追加
-                c = db.rawQuery(
-                        "SELECT id FROM service_message WHERE title='支付助手' ORDER BY id DESC LIMIT 1",
-                        null);
-                if (c.moveToFirst()) {
-                    lastId = c.getString(0);
-                    writeLastId(lastId);
-                }
-                c.close();
-                db.close();
-                Log.i(TAG, "支付宝轮询初始化，lastId=" + lastId);
-                return;
-            } else {
-                c = db.rawQuery(
-                        "SELECT id, gmtCreate, content FROM service_message"
-                        + " WHERE title='支付助手' AND id > ? ORDER BY id ASC",
-                        new String[]{lastId});
-            }
-
-            // 4. 解析 + 追加到 messages.log
-            StringBuilder sb = new StringBuilder();
-            SimpleDateFormat sdf = new SimpleDateFormat("MM-dd HH:mm:ss", Locale.getDefault());
-
-            while (c.moveToNext()) {
-                String msgId = c.getString(0);
-                long gmtCreate = c.getLong(1);
-                String content = c.getString(2);
-
-                try {
-                    JSONObject json = new JSONObject(content);
-                    if (!json.optBoolean("isPaymentMsg", false)) continue;
-
-                    String topType = json.optString("topSubContent", "");
-                    String amount  = json.optString("content", "");
-                    String method  = json.optString("assistMsg1", "");
-                    String merchant = "";
-
-                    JSONObject scene = json.optJSONObject("sceneExt2");
-                    if (scene != null) {
-                        merchant = scene.optString("sceneName", "");
-                    }
-
-                    if (amount.isEmpty()) continue;
-
-                    String dir;
-                    if ("付款成功".equals(topType) || topType.contains("扣款")) {
-                        dir = "支出";
-                    } else {
-                        dir = "收入";
-                    }
-
-                    String ts = sdf.format(new Date(gmtCreate));
-                    sb.append("[").append(ts).append("] A|")
-                      .append(dir).append("|").append(amount).append("|")
-                      .append(merchant).append("|").append(method).append("\n");
-
-                    lastId = msgId;
-                } catch (Exception e) {
-                    Log.w(TAG, "解析支付宝记录失败: " + e.getMessage());
-                }
-            }
-            c.close();
-            db.close();
-
-            // 5. 写入
-            if (sb.length() > 0) {
-                File logFile = new File(LOG_FILE);
-                try (FileOutputStream fos = new FileOutputStream(logFile, true);
-                     OutputStreamWriter w = new OutputStreamWriter(fos, StandardCharsets.UTF_8)) {
-                    w.write(sb.toString());
-                    w.flush();
-                }
-                writeLastId(lastId);
-                Log.i(TAG, "支付宝轮询: 追加 " + sb.toString().split("\n").length + " 条");
-            }
-
-        } catch (Exception e) {
-            Log.e(TAG, "支付宝轮询异常: " + e.getMessage());
-        }
-    }
-
-    private void writeLastId(String id) {
-        try {
-            File idFile = new File(ALIPAY_LAST_ID_FILE);
-            idFile.getParentFile().mkdirs();
-            try (FileOutputStream fos = new FileOutputStream(idFile);
-                 OutputStreamWriter w = new OutputStreamWriter(fos, StandardCharsets.UTF_8)) {
-                w.write(id);
-                w.flush();
-            }
-        } catch (IOException ignored) {}
-    }
-
-    // ── 导出 ──────────────────────────────────────────
-
-    private void doExport(Context context) {
-        // 先轮询支付宝支付记录（通过 su 读数据库）
-        pollAlipay();
-
+    void doExport(Context context) {
         File logFile = new File(LOG_FILE);
         if (!logFile.exists()) {
             Log.d(TAG, "日志不存在, 跳过");
@@ -586,7 +447,7 @@ public class DailyExportReceiver extends BroadcastReceiver {
 
     // ── 通知 ──────────────────────────────────────────
 
-    private void createChannel(Context context) {
+    void createChannel(Context context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             NotificationChannel channel = new NotificationChannel(
                     CHANNEL_ID,

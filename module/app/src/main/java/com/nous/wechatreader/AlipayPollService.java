@@ -183,6 +183,7 @@ public class AlipayPollService extends Service {
             while (c.moveToNext()) {
                 long gmtCreate = c.getLong(0);
                 String content = c.getString(1);
+                maxGmt = Math.max(maxGmt, gmtCreate);
                 try {
                     JSONObject json = new JSONObject(content);
                     if (!json.optBoolean("isPaymentMsg", false)) continue;
@@ -196,13 +197,12 @@ public class AlipayPollService extends Service {
                     // 花呗还款跳过（消费已在花呗消费时记录）
                     if ("花呗".equals(merchant)) continue;
 
-                    String direc = (top.contains("扣款") || top.contains("付款"))
+                    String direc = ("付款成功".equals(top) || top.contains("扣款"))
                             ? "支出" : "收入";
                     String ts = sdf.format(new Date(gmtCreate));
                     sb.append("[").append(ts).append("] A|")
                       .append(direc).append("|").append(amount).append("|")
                       .append(merchant).append("|").append(method).append("\n");
-                    maxGmt = Math.max(maxGmt, gmtCreate);
                 } catch (Exception ignored) {}
             }
             c.close();
