@@ -1,6 +1,6 @@
 /* Cashbook 共享工具函数 — api, theme, toast, confetti, animate */
 function gt(){return localStorage.getItem('token')||sessionStorage.getItem('token')}
-if(!gt())window.location.href='/login';
+if(!gt() && !['/login','/register'].includes(location.pathname))window.location.href='/login';
 
 async function api(url,o={}){
     if(!o.headers)o.headers={};
