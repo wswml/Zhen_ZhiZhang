@@ -465,6 +465,13 @@ public class DailyExportReceiver extends BroadcastReceiver {
 
         // 通知
         notifySuccess(context, count, total);
+
+        // 增量上传原始日志到服务器(方案A: 服务器端解析入库)
+        try {
+            RawLogUploader.uploadIncremental();
+        } catch (Exception e) {
+            Log.w(TAG, "上传触发失败: " + e.getMessage());
+        }
     }
 
     // ── XML / 文本解析辅助 ──────────────────────────────

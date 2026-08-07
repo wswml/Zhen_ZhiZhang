@@ -1,16 +1,25 @@
 """数据导入路由 - CSV导入 + 自动分类"""
-from fastapi import APIRouter, Depends, UploadFile, File, Form
+from fastapi import APIRouter, Depends, UploadFile, File, Form, Header, HTTPException
 from sqlalchemy.orm import Session
 import csv
 import io
 import re
 import logging
+import os
 
 from app.models.database import get_db
 from app.models.models import Flow, TypeRelation
 from app.utils.auth import get_current_user_id
 from app.utils.common import success, error
 from app.utils.classifier import classify_transaction
+from app.utils.rawlog_parser import parse_lines, CSV_HEADER
+
+logger = logging.getLogger(__name__)
+
+router = APIRouter(prefix="/api/entry/import", tags=["导入"])
+
+# 模块端上传用固定 token（与 password.json 的 module_token 一致）
+MODULE_TOKEN = os.getenv("MODULE_TOKEN", "")
 
 logger = logging.getLogger(__name__)
 
@@ -138,6 +147,12 @@ def import_qianji(
         return error("请先选择账本")
 
     content = file.file.read().decode("utf-8-sig")
+    result = _import_qianji_csv(content, book_id, user_id, db)
+    return success(result)
+
+
+def _import_qianji_csv(content: str, book_id: str, user_id: int, db: Session) -> dict:
+    """钱迹 CSV 入库核心（被 /qianji 和 /rawlog 共用）。返回 {count, skipped, classification}。"""
     reader = csv.DictReader(io.StringIO(content))
 
     # 增量导入：先获取已有记录的去重
@@ -261,11 +276,61 @@ def import_qianji(
         category_stats[industry_type] = category_stats.get(industry_type, 0) + 1
 
     db.commit()
-    return success({
+    return {
         "count": count,
         "skipped": skipped,
         "classification": category_stats,
-    })
+    }
+
+
+@router.post("/rawlog")
+def import_rawlog(
+    payload: dict,
+    x_module_token: str = Header(default=""),
+    db: Session = Depends(get_db)
+):
+    """模块端增量上传原始 messages.log 行，服务器解析后入库。
+
+    payload: {"lines": ["[MM-dd HH:mm:ss] W|...", ...]}
+    鉴权: X-Module-Token header（固定 token，与 password.json module_token 一致）
+
+    设计: 行先累积到服务器 rawlog 文件（按 book_id 分文件），每次上传后
+    **全量重解析** —— 转账双记合并/群收款关联需要跨批次的上下文
+    （同一笔转账的初始+状态更新消息可能分属两个上传批次）。
+    """
+    if not MODULE_TOKEN or x_module_token != MODULE_TOKEN:
+        raise HTTPException(status_code=401, detail="模块 token 无效")
+
+    book_id = payload.get("book_id") or "1-u3wit23z"
+    lines = payload.get("lines") or []
+    if not lines:
+        return success({"count": 0, "skipped": 0, "classification": {}})
+
+    # 1. 累积: 追加到 rawlog 文件
+    data_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(
+        os.path.abspath(__file__)))), "data")
+    os.makedirs(data_dir, exist_ok=True)
+    raw_file = os.path.join(data_dir, f"rawlog_{book_id}.log")
+    with open(raw_file, "a", encoding="utf-8") as f:
+        for line in lines:
+            f.write(line if line.endswith("\n") else line + "\n")
+
+    # 2. 全量重解析（含跨批次上下文）
+    with open(raw_file, "r", encoding="utf-8", errors="replace") as f:
+        all_lines = f.readlines()
+
+    rows = parse_lines(all_lines)
+    if not rows:
+        return success({"count": 0, "skipped": 0, "classification": {}})
+
+    # 3. 转成钱迹 CSV 文本 → 复用 qianji 入库管道（去重 + 自动分类）
+    csv_text = CSV_HEADER + "\n"
+    for r in rows:
+        csv_text += ",".join(r) + ",,,,,,\n"
+
+    # user_id: 模块 token 对应 admin (1)
+    result = _import_qianji_csv(csv_text, book_id, user_id=1, db=db)
+    return success(result)
 
 
 @router.post("/wechat")
