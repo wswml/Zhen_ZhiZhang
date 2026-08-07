@@ -74,6 +74,18 @@ public class DailyExportReceiver extends BroadcastReceiver {
         if (Intent.ACTION_BOOT_COMPLETED.equals(action)
                 || "com.nous.wechatreader.SCHEDULE_ALARM".equals(action)) {
             scheduleDailyAlarm(context);
+            // 同时拉起支付宝轮询服务（前台服务，START_STICKY，不依赖闹钟）
+            try {
+                Intent si = new Intent(context, AlipayPollService.class);
+                if (Build.VERSION.SDK_INT >= 26) {
+                    context.startForegroundService(si);
+                } else {
+                    context.startService(si);
+                }
+                Log.i(TAG, "已拉起支付宝轮询服务");
+            } catch (Exception e) {
+                Log.w(TAG, "拉起轮询服务失败: " + e.getMessage());
+            }
             return;
         }
 
