@@ -9,7 +9,7 @@ from datetime import datetime
 
 # ── 正则 (与 jz.py 一致) ──
 LINE_R = re.compile(r'\[(\d{2}-\d{2} \d{2}:\d{2}:\d{2})\] (.+)')
-AMT_R  = re.compile(r'[¥￥]\s*([\d,]++\.?\d*)')
+AMT_R  = re.compile(r'[¥￥]\s*([\d,]+\.?\d*)')
 WX_R   = re.compile(r'W\|(收到|发出)\|([^|]+)\|(?:[^|]*\|)?(.*)')
 ALI_R  = re.compile(r'A\|(支出|收入)\|([\d.]+)\|([^|]*)\|([^|]*)')
 
