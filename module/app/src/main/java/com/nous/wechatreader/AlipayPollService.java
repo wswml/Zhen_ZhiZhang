@@ -153,9 +153,17 @@ public class AlipayPollService extends Service {
                     + " && chmod 644 " + ALIPAY_TMP + "'"
             );
             Process p = pb.start();
+            // 读取 stderr 便于诊断（su 失败原因：未授权 / 找不到 su / SELinux）
+            StringBuilder errSb = new StringBuilder();
+            try (BufferedReader br = new BufferedReader(
+                    new InputStreamReader(p.getErrorStream(), StandardCharsets.UTF_8))) {
+                String line;
+                while ((line = br.readLine()) != null) errSb.append(line).append('\n');
+            }
             p.waitFor();
             if (p.exitValue() != 0) {
-                Log.w(TAG, "支付宝 DB 复制失败 (su 未授权?)");
+                Log.w(TAG, "支付宝 DB 复制失败 exit=" + p.exitValue()
+                        + " err=" + errSb.toString().trim());
                 return;
             }
 
