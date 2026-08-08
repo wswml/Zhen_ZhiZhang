@@ -349,14 +349,14 @@ function renderCatList(){
         const arr=byCat[c].slice().sort((a,b)=>(b.day||'').localeCompare(a.day||''));
         const total=sum(arr);
         const pct=Math.round(total/catMax*100);
-        const rows=arr.map(f=>'<div class="tx-item" style="padding:5px 12px 5px 52px;min-height:auto;"><div class="tx-info"><div class="tx-title" style="font-size:0.8rem;">'+(f.name||c)+'</div><div class="tx-meta">'+((f.day||'').length>10?(f.day.slice(5,16)):f.day)+'</div></div><div class="tx-amount expense" style="font-size:0.82rem;">-¥'+(f.money||0).toFixed(2)+'</div></div>').join('');
-        return '<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;margin-bottom:6px;overflow:hidden;">'+
+        const rows=arr.map(f=>'<div class="tx-item" style="padding:9px 16px 9px 64px;min-height:auto;"><div class="tx-info"><div class="tx-title" style="font-size:0.88rem;">'+(f.name||c)+'</div><div class="tx-meta">'+((f.day||'').length>10?(f.day.slice(5,16)):f.day)+'</div></div><div class="tx-amount expense" style="font-size:0.9rem;">-¥'+(f.money||0).toFixed(2)+'</div></div>').join('');
+        return '<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;margin-bottom:10px;overflow:hidden;">'+
             '<div class="cat-row" onclick="toggleCatFlows(\''+sid+'\')">'+
-                '<div class="tx-icon '+_catCls(c)+'" style="width:22px;height:22px;font-size:0.55rem;border-radius:6px;"><i class="ph ph-'+_catIcon(c)+'"></i></div>'+
-                '<span class="cat-name" style="font-size:0.85rem;font-weight:500;color:var(--text-primary);">'+c+'</span>'+
+                '<div class="tx-icon '+_catCls(c)+'" style="width:36px;height:36px;font-size:0.85rem;border-radius:10px;"><i class="ph ph-'+_catIcon(c)+'"></i></div>'+
+                '<span class="cat-name" style="font-size:1rem;font-weight:500;color:var(--text-primary);">'+c+'</span>'+
                 '<div class="cat-bar"><div style="width:'+pct+'%;background:#7C3AED;"></div></div>'+
-                '<span style="font-size:0.78rem;color:var(--text-muted);white-space:nowrap;">¥'+total.toLocaleString()+' · '+arr.length+'笔</span>'+
-                '<i class="ph ph-caret-down" id="catArrow-'+sid+'" style="color:var(--text-muted);font-size:0.9rem;transition:transform 0.25s;"></i>'+
+                '<span style="font-size:0.85rem;color:var(--text-muted);white-space:nowrap;">¥'+total.toLocaleString()+' · '+arr.length+'笔</span>'+
+                '<i class="ph ph-caret-down" id="catArrow-'+sid+'" style="color:var(--text-muted);font-size:1.05rem;transition:transform 0.25s;"></i>'+
             '</div>'+
             '<div id="catFlows-'+sid+'" style="display:none;border-top:1px solid var(--border);">'+rows+'</div>'+
         '</div>'

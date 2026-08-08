@@ -530,10 +530,10 @@ select.form-input {
 .month-picker .ph-caret-down { font-size:0.75rem; }
 
 /* ===== 分类明细：分类行 + 当月进度条 ===== */
-.cat-row { display:flex;align-items:center;gap:8px;padding:10px 12px;cursor:pointer; }
+.cat-row { display:flex;align-items:center;gap:10px;padding:14px 16px;cursor:pointer; }
 .cat-row:active { background:var(--bg-hover); }
-.cat-bar { flex:1;height:6px;background:var(--border);border-radius:3px;overflow:hidden;max-width:70px;min-width:30px; }
-.cat-bar > div { height:100%;border-radius:3px; }
+.cat-bar { flex:1;height:7px;background:var(--border);border-radius:4px;overflow:hidden;max-width:90px;min-width:36px; }
+.cat-bar > div { height:100%;border-radius:4px; }
 
 /* ===== 月份滚轮（密码锁样式） ===== */
 .wheel-box { display:flex;justify-content:center;gap:20px;padding:8px 0 20px; }
