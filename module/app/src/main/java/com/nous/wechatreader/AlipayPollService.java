@@ -177,7 +177,18 @@ public class AlipayPollService extends Service {
                         new InputStreamReader(new FileInputStream(idFile)))) {
                     String line = br.readLine();
                     if (line != null) lastGmt = Long.parseLong(line.trim());
-                } catch (Exception ignored) {}
+                } catch (Exception ignored) {
+                    // ⚠️ 模块进程无 /sdcard 存储权限 → FileInputStream 读 EACCES
+                    // → lastGmt=0 → 每次轮询全量追加所有支付宝记录(messages.log 爆炸)
+                    // fallback: su -M cat 读取(与 RawLogUploader 同款降级)
+                    try {
+                        String out = execSu("cat " + ALIPAY_LAST_ID_FILE);
+                        if (out != null) {
+                            String line = out.trim();
+                            if (!line.isEmpty()) lastGmt = Long.parseLong(line);
+                        }
+                    } catch (Exception ignored2) {}
+                }
             }
 
             SQLiteDatabase db = SQLiteDatabase.openDatabase(
@@ -230,6 +241,32 @@ public class AlipayPollService extends Service {
             }
         } catch (Exception e) {
             Log.e(TAG, "支付宝轮询异常: " + e.getMessage());
+        }
+    }
+
+    /** 执行 su -M 命令并返回 stdout（null=失败）— 与 RawLogUploader 同款 */
+    private static String execSu(String cmd) {
+        try {
+            ProcessBuilder pb = new ProcessBuilder(
+                    "/system/bin/sh", "-c",
+                    "su -M -c '" + cmd.replace("'", "'\\''") + "'"
+            );
+            Process p = pb.start();
+            StringBuilder out = new StringBuilder();
+            try (BufferedReader br = new BufferedReader(
+                    new InputStreamReader(p.getInputStream(), StandardCharsets.UTF_8))) {
+                String line;
+                while ((line = br.readLine()) != null) out.append(line).append('\n');
+            }
+            p.waitFor();
+            if (p.exitValue() != 0) {
+                Log.w(TAG, "su 命令失败 exit=" + p.exitValue());
+                return null;
+            }
+            return out.toString();
+        } catch (Exception e) {
+            Log.w(TAG, "su 命令异常: " + e.getMessage());
+            return null;
         }
     }
 
