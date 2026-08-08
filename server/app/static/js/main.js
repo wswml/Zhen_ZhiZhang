@@ -322,70 +322,48 @@ function loadProfile(){
     ).join('')
 }
 
-// ===== 分类明细 — 二级列表（分类→月份→明细） =====
+// ===== 分类明细 — 月份滚轮 + 分类→当月明细 =====
+let catSelMonth='';
+function _monthLabel(m){return m?(parseInt(m.slice(0,4))+'年'+parseInt(m.slice(5,7))+'月'):'选择月份'}
+function _catMonths(){return Array.from(new Set(allFlows.filter(f=>f.flow_type==='支出'&&f.day).map(f=>f.day.slice(0,7)))).sort()}
 async function loadCategoryPage(){
     if(!books.length)return;
     if(!currentBookId||!books.find(b=>b.book_id===currentBookId))currentBookId=books[0].book_id;
     if(!allFlows.length){const r=await api("/api/entry/flow/all?bookId="+currentBookId);if(r.code===200)allFlows=r.data||[]}
+    const ms=_catMonths();
+    if(!catSelMonth||ms.indexOf(catSelMonth)<0)catSelMonth=ms.length?ms[ms.length-1]:new Date().toISOString().slice(0,7);
+    document.getElementById('catMonthBtn').innerHTML='<i class="ph ph-calendar-blank"></i><span>'+_monthLabel(catSelMonth)+'</span><i class="ph ph-caret-down"></i>';
     renderCatList()
 }
 function renderCatList(){
     const el=document.getElementById('catList');
-    const catMonthly={};const catTotal={};const catFlowMap={};
-    allFlows.forEach(f=>{
-        if(f.flow_type!=='支出'||!f.day)return;
-        const m=f.day.slice(0,7),c=f.industry_type||'其他';
-        if(!catMonthly[c]){catMonthly[c]={};catTotal[c]=0;catFlowMap[c]={}}
-        if(!catMonthly[c][m]){catMonthly[c][m]=0;catFlowMap[c][m]=[]}
-        catMonthly[c][m]+=(f.money||0);
-        catTotal[c]+=(f.money||0);
-        catFlowMap[c][m].push(f)
-    });
-    const months=Array.from(new Set(allFlows.filter(f=>f.flow_type==='支出'&&f.day).map(f=>f.day.slice(0,7)))).sort();
-    if(!months.length){el.innerHTML='<div style="text-align:center;padding:30px;color:var(--text-muted);font-size:0.85rem;">暂无支出</div>';return}
-    const sortedCats=Object.keys(catTotal).sort((a,b)=>catTotal[b]-catTotal[a]);
-    let html='';
-    sortedCats.forEach(c=>{
+    const monthFlows=allFlows.filter(f=>f.flow_type==='支出'&&f.day&&f.day.startsWith(catSelMonth));
+    if(!monthFlows.length){el.innerHTML='<div style="text-align:center;padding:30px;color:var(--text-muted);font-size:0.85rem;">'+_monthLabel(catSelMonth)+'暂无支出</div>';return}
+    const byCat={};
+    monthFlows.forEach(f=>{const c=f.industry_type||'其他';if(!byCat[c])byCat[c]=[];byCat[c].push(f)});
+    const sum=a=>a.reduce((s,f)=>s+(f.money||0),0);
+    const catMax=Math.max(...Object.keys(byCat).map(c=>sum(byCat[c])),1);
+    const sortedCats=Object.keys(byCat).sort((a,b)=>sum(byCat[b])-sum(byCat[a]));
+    el.innerHTML=sortedCats.map(c=>{
         const sid=c.replace(/[^a-zA-Z0-9\u4e00-\u9fa5]/g,'');
-        const mData=catMonthly[c];
-        const catMax=Math.max(...months.map(m=>mData[m]||0),1);
-        const mKeys=months.filter(m=>mData[m]);
-        const total=catTotal[c]|0;
-        const cnt=Object.values(catFlowMap[c]).reduce((s,arr)=>s+arr.length,0);
-        html+=`<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;margin-bottom:6px;overflow:hidden;">
-            <div style="display:flex;align-items:center;gap:8px;padding:10px 12px;cursor:pointer;" onclick="toggleCatMonths('${sid}')">
-                <div class="tx-icon ${_catCls(c)}" style="width:22px;height:22px;font-size:0.55rem;border-radius:6px;"><i class="ph ph-${_catIcon(c)}"></i></div>
-                <div style="flex:1;min-width:0;display:flex;justify-content:space-between;align-items:center;">
-                    <span class="cat-name" style="font-size:0.85rem;font-weight:500;color:var(--text-primary);">${c}</span>
-                    <span style="font-size:0.78rem;color:var(--text-muted);">¥${total.toLocaleString()} · ${cnt}笔</span>
-                </div>
-                <i class="ph ph-caret-down" id="catArrow-${sid}" style="color:var(--text-muted);font-size:0.9rem;transition:transform 0.25s;"></i>
-            </div>
-            <div id="catMonths-${sid}" style="display:none;border-top:1px solid var(--border);">
-                ${mKeys.sort().reverse().map(m=>{
-                    const amt=mData[m]|0;
-                    const pct=amt/catMax*100;
-                    const mid=m.slice(0,4)+'年'+parseInt(m.slice(5))+'月';
-                    const farr=catFlowMap[c][m]||[];
-                    return `<div style="cursor:pointer;" onclick="toggleMonthFlows('${sid}','${m}')">
-                        <div style="display:flex;align-items:center;gap:8px;padding:8px 12px 8px 44px;border-bottom:1px solid var(--border);">
-                            <span style="font-size:0.78rem;font-weight:400;color:var(--text-muted);white-space:nowrap;">${mid}</span>
-                            <div style="flex:1;height:6px;background:var(--border);border-radius:3px;overflow:hidden;max-width:80px;">
-                                <div style="height:100%;width:${pct}%;background:#7C3AED;border-radius:3px;"></div>
-                            </div>
-                            <span style="font-size:0.78rem;font-weight:500;color:var(--expense);margin-left:auto;">-¥${amt.toLocaleString()}</span>
-                            <i class="ph ph-caret-down" id="mArrow-${sid}-${m}" style="color:var(--text-muted);font-size:0.8rem;transition:transform 0.25s;"></i>
-                        </div>
-                        <div id="mFlows-${sid}-${m}" style="display:none;"></div>
-                    </div>`
-                }).join('')}
-            </div>
-        </div>`;
-    });
-    el.innerHTML=html;
+        const arr=byCat[c].slice().sort((a,b)=>(b.day||'').localeCompare(a.day||''));
+        const total=sum(arr);
+        const pct=Math.round(total/catMax*100);
+        const rows=arr.map(f=>'<div class="tx-item" style="padding:5px 12px 5px 52px;min-height:auto;"><div class="tx-info"><div class="tx-title" style="font-size:0.8rem;">'+(f.name||c)+'</div><div class="tx-meta">'+((f.day||'').length>10?(f.day.slice(5,16)):f.day)+'</div></div><div class="tx-amount expense" style="font-size:0.82rem;">-¥'+(f.money||0).toFixed(2)+'</div></div>').join('');
+        return '<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;margin-bottom:6px;overflow:hidden;">'+
+            '<div class="cat-row" onclick="toggleCatFlows(\''+sid+'\')">'+
+                '<div class="tx-icon '+_catCls(c)+'" style="width:22px;height:22px;font-size:0.55rem;border-radius:6px;"><i class="ph ph-'+_catIcon(c)+'"></i></div>'+
+                '<span class="cat-name" style="font-size:0.85rem;font-weight:500;color:var(--text-primary);">'+c+'</span>'+
+                '<div class="cat-bar"><div style="width:'+pct+'%;background:#7C3AED;"></div></div>'+
+                '<span style="font-size:0.78rem;color:var(--text-muted);white-space:nowrap;">¥'+total.toLocaleString()+' · '+arr.length+'笔</span>'+
+                '<i class="ph ph-caret-down" id="catArrow-'+sid+'" style="color:var(--text-muted);font-size:0.9rem;transition:transform 0.25s;"></i>'+
+            '</div>'+
+            '<div id="catFlows-'+sid+'" style="display:none;border-top:1px solid var(--border);">'+rows+'</div>'+
+        '</div>'
+    }).join('')
 }
-function toggleCatMonths(sid){
-    const el=document.getElementById('catMonths-'+sid);
+function toggleCatFlows(sid){
+    const el=document.getElementById('catFlows-'+sid);
     const arrow=document.getElementById('catArrow-'+sid);
     if(!el)return;
     if(el.style.display==='block'){
@@ -393,33 +371,55 @@ function toggleCatMonths(sid){
         if(arrow)arrow.style.transform='rotate(0deg)';
         return
     }
-    document.querySelectorAll('[id^="catMonths-"]').forEach(e=>e.style.display='none');
+    document.querySelectorAll('[id^="catFlows-"]').forEach(e=>e.style.display='none');
     document.querySelectorAll('[id^="catArrow-"]').forEach(e=>e.style.transform='rotate(0deg)');
     el.style.display='block';
     if(arrow)arrow.style.transform='rotate(180deg)'
 }
-function toggleMonthFlows(sid,month){
-    const el=document.getElementById('mFlows-'+sid+'-'+month);
-    const arrow=document.getElementById('mArrow-'+sid+'-'+month);
-    if(!el)return;
-    if(el.style.display==='block'){
-        el.style.display='none';
-        if(arrow)arrow.style.transform='rotate(0deg)';
-        return
-    }
-    document.querySelectorAll('[id^="mFlows-"]').forEach(e=>e.style.display='none');
-    document.querySelectorAll('[id^="mArrow-"]').forEach(e=>e.style.transform='rotate(0deg)');
-    const card=document.getElementById('catMonths-'+sid);
-    if(!card)return;
-    const catName=card.previousElementSibling?.querySelector('.cat-name')?.textContent||'';
-    const filtered=allFlows.filter(f=>f.flow_type==='支出'&&(f.industry_type||'其他')===catName&&(f.day||'').startsWith(month))
-        .sort((a,b)=>(b.day||'').localeCompare(a.day||''));
-    el.innerHTML=filtered.length
-        ? filtered.map(f=>'<div class="tx-item" style="padding:5px 12px 5px 52px;min-height:auto;"><div class="tx-info"><div class="tx-title" style="font-size:0.8rem;">'+(f.name||catName)+'</div><div class="tx-meta">'+((f.day||'').length>10?(f.day.slice(5,16)):f.day)+'</div></div><div class="tx-amount expense" style="font-size:0.82rem;">-¥'+(f.money||0).toFixed(2)+'</div></div>').join('')
-        : '<div style="padding:8px 12px 8px 52px;color:var(--text-muted);font-size:0.78rem;">无记录</div>';
-    el.style.display='block';
-    if(arrow)arrow.style.transform='rotate(180deg)'
+
+// ===== 月份滚轮选择器（密码锁样式） =====
+let monthWheelSel={y:0,m:0};
+function openMonthSheet(){
+    const ms=_catMonths();
+    const years=[];
+    const ys=ms.map(m=>parseInt(m.slice(0,4)));
+    const ymin=ys.length?Math.min(...ys):new Date().getFullYear()-2;
+    const ymax=ys.length?Math.max(...ys):new Date().getFullYear();
+    for(let y=ymin;y<=ymax;y++)years.push(y);
+    const curY=parseInt(catSelMonth.slice(0,4)),curM=parseInt(catSelMonth.slice(5,7));
+    const yi=years.indexOf(curY)<0?0:years.indexOf(curY);
+    monthWheelSel={y:yi,m:curM-1};
+    _buildWheel('monthWheelYear',years.map(y=>y+'年'),yi);
+    _buildWheel('monthWheelMon',Array.from({length:12},(_,i)=>(i+1)+'月'),curM-1);
+    requestAnimationFrame(()=>{
+        document.getElementById('monthWheelYear').scrollTop=yi*44;
+        document.getElementById('monthWheelMon').scrollTop=(curM-1)*44;
+        _wheelSnap(document.getElementById('monthWheelYear'));
+        _wheelSnap(document.getElementById('monthWheelMon'))
+    });
+    document.getElementById('monthSheet').classList.add('active')
 }
+function _buildWheel(id,items,activeIdx){
+    const col=document.getElementById(id);
+    col.innerHTML=items.map((t,i)=>'<div class="wheel-item'+(i===activeIdx?' active':'')+'" style="height:44px;line-height:44px;">'+t+'</div>').join('');
+    col.onscroll=()=>_wheelSnap(col)
+}
+function _wheelSnap(col){
+    const ih=44;
+    const idx=Math.max(0,Math.min(col.children.length-1,Math.round(col.scrollTop/ih)));
+    Array.from(col.children).forEach((it,i)=>it.classList.toggle('active',i===idx));
+    if(col.id==='monthWheelYear')monthWheelSel.y=idx;else monthWheelSel.m=idx
+}
+function confirmMonth(){
+    const years=Array.from(document.getElementById('monthWheelYear').children).map(e=>parseInt(e.textContent));
+    const year=years[monthWheelSel.y];
+    if(!year){closeMonthSheet();return}
+    catSelMonth=year+'-'+String(monthWheelSel.m+1).padStart(2,'0');
+    document.getElementById('catMonthBtn').innerHTML='<i class="ph ph-calendar-blank"></i><span>'+_monthLabel(catSelMonth)+'</span><i class="ph ph-caret-down"></i>';
+    renderCatList();
+    closeMonthSheet()
+}
+function closeMonthSheet(e){if(!e||e.target.id==='monthSheet')document.getElementById('monthSheet').classList.remove('active')}
 
 // ===== 记账弹窗 =====
 function openRecordSheet(){

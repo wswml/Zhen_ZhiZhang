@@ -516,3 +516,43 @@ select.form-input {
 .loader-dots span:nth-child(2) { animation-delay:0.2s; }
 .loader-dots span:nth-child(3) { animation-delay:0.4s; }
 @keyframes dotPulse { 0%,80%,100%{transform:scale(0.6);opacity:0.3} 40%{transform:scale(1);opacity:1} }
+
+/* ===== 分类明细：月份选择按钮 ===== */
+.month-picker {
+    display:flex;align-items:center;gap:6px;
+    background:var(--accent-bg);color:var(--accent);
+    border:none;border-radius:20px;padding:8px 14px;
+    font-size:0.85rem;font-weight:500;cursor:pointer;
+    transition:all 0.25s ease;
+}
+.month-picker:active { transform:scale(0.96); }
+.month-picker span { white-space:nowrap; }
+.month-picker .ph-caret-down { font-size:0.75rem; }
+
+/* ===== 分类明细：分类行 + 当月进度条 ===== */
+.cat-row { display:flex;align-items:center;gap:8px;padding:10px 12px;cursor:pointer; }
+.cat-row:active { background:var(--bg-hover); }
+.cat-bar { flex:1;height:6px;background:var(--border);border-radius:3px;overflow:hidden;max-width:70px;min-width:30px; }
+.cat-bar > div { height:100%;border-radius:3px; }
+
+/* ===== 月份滚轮（密码锁样式） ===== */
+.wheel-box { display:flex;justify-content:center;gap:20px;padding:8px 0 20px; }
+.wheel-col {
+    position:relative;width:110px;height:176px;overflow-y:auto;
+    border-top:2px solid rgba(124,58,237,0.35);
+    border-bottom:2px solid rgba(124,58,237,0.35);
+    -webkit-mask-image:linear-gradient(to bottom,transparent,#000 22%,#000 78%,transparent);
+    mask-image:linear-gradient(to bottom,transparent,#000 22%,#000 78%,transparent);
+    scroll-snap-type:y mandatory;
+    overscroll-behavior:contain;
+    scrollbar-width:none;
+}
+.wheel-col::-webkit-scrollbar { display:none; }
+.wheel-item {
+    height:44px;line-height:44px;text-align:center;
+    font-size:1.05rem;color:var(--text-secondary);
+    scroll-snap-align:center;
+    transition:color 0.2s, font-size 0.2s, font-weight 0.2s;
+    -webkit-user-select:none;user-select:none;
+}
+.wheel-item.active { color:var(--accent);font-weight:600;font-size:1.2rem; }
